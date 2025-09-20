@@ -1,0 +1,6 @@
+telethon~=1.39.0
+prompt~=0.4.1
+rich~=13.7.1
+inquirerpy~=0.3.4
+typing
+pytz~=2024.1
