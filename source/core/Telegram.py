@@ -1,12 +1,15 @@
 import os
+
 from telethon import TelegramClient
-from source.utils.Console import Terminal
+
 from source.model.Chat import Chat
+from source.service.ChatService import ChatService
 from source.service.Forward import Forward
 from source.service.MessageQueue import MessageQueue
 from source.service.MessageService import MessageService
-from source.service.ChatService import ChatService
-from source.utils.Constants import SESSION_PREFIX_PATH, MEDIA_FOLDER_PATH
+from source.utils.Console import Terminal
+from source.utils.Constants import MEDIA_FOLDER_PATH, SESSION_PREFIX_PATH
+
 
 class Telegram:
     def __init__(self, credentials):

@@ -1,5 +1,4 @@
 import logging
-from typing import Optional, Dict, Tuple
 
 from source.model.History import History
 
@@ -7,7 +6,7 @@ logger = logging.getLogger(__name__)
 
 class HistoryService:
     """Service for managing message history and mappings between source and destination messages."""
-    
+
     def __init__(self):
         """Initialize the history service with the history model."""
         self._history = History()
@@ -26,7 +25,7 @@ class HistoryService:
         except Exception as e:
             logger.error(f"Error adding message mapping: {e}", exc_info=True)
 
-    def get_mapping(self, source_chat_id: int, source_msg_id: int, dest_chat_id: int) -> Optional[int]:
+    def get_mapping(self, source_chat_id: int, source_msg_id: int, dest_chat_id: int) -> int | None:
         """Get the destination message ID for a source message.
         
         Args:
@@ -43,10 +42,10 @@ class HistoryService:
             logger.error(f"Error getting message mapping: {e}", exc_info=True)
             return None
 
-    def get_all_mappings(self) -> Dict[Tuple[int, int, int], int]:
+    def get_all_mappings(self) -> dict[tuple[int, int, int], int]:
         """Get all message mappings.
         
         Returns:
             Dictionary of all message mappings
         """
-        return self._history.message_map 
+        return self._history.message_map

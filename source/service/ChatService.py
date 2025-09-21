@@ -1,8 +1,10 @@
-from source.utils.Console import Terminal
-import telethon
 from datetime import datetime
+
 import pytz
-from typing import Optional
+import telethon
+
+from source.utils.Console import Terminal
+
 
 class ChatService:
     def __init__(self, console=None):
@@ -58,11 +60,11 @@ class ChatService:
         local_date = date.astimezone(self.local_timezone)
         return local_date.strftime("%Y-%m-%d %H:%M:%S %Z")
 
-    def print_chat_info(self, chat, message: Optional[telethon.tl.custom.Message] = None):
+    def print_chat_info(self, chat, message: telethon.tl.custom.Message | None = None):
         """Print formatted chat information."""
         chat_name = self.get_chat_name(chat)
         chat_type = self.get_chat_type(chat)
-        
+
         self.console.print(f"[bold blue]{chat_type}[/bold blue]: [yellow]{chat_name}[/yellow]")
         if message:
             local_date = self.format_date(message.date)
@@ -72,4 +74,4 @@ class ChatService:
             if hasattr(message.peer_id, 'channel_id'):
                 link = f"https://t.me/c/{message.peer_id.channel_id}/{message.id}"
                 self.console.print(f"[dim]Link:[/dim] [link]{link}[/link]")
-            self.console.print("─" * 50) 
+            self.console.print("─" * 50)

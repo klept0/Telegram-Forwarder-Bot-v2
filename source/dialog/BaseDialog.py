@@ -1,6 +1,7 @@
 from InquirerPy import inquirer
+
 from source.utils.Console import Terminal
-from rich.markup import render
+
 
 class BaseDialog:
     def __init__(self):
@@ -15,7 +16,7 @@ class BaseDialog:
     async def list_chats_terminal(self, chats, type_label):
         """Shows a list of chats for selection."""
         options = [{"name": "Stop", "value": "-1"}]
-        
+
         for i, chat in enumerate(chats):
             options.append({
                 "name": chat.get_plain_display_name(),
@@ -23,4 +24,4 @@ class BaseDialog:
             })
 
         choice = await self.show_options(f"Enter {type_label} channel", options)
-        return int(choice) 
+        return int(choice)

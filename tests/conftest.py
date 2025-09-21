@@ -2,8 +2,9 @@
 
 import asyncio
 import os
+from collections.abc import Generator
 from pathlib import Path
-from typing import Any, Dict, Generator
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -42,42 +43,50 @@ def mock_telegram_client() -> AsyncMock:
     client.is_user_authorized = AsyncMock(return_value=True)
     client.start = AsyncMock()
     client.disconnect = AsyncMock()
-    client.get_me = AsyncMock(
-        return_value=MagicMock(id=12345, username="test_user")
-    )
+    client.get_me = AsyncMock(return_value=MagicMock(id=12345, username="test_user"))
     return client
 
 
 @pytest.fixture
-def sample_credentials() -> Dict[str, Any]:
+def mock_credentials() -> MagicMock:
+    """Create mock credentials for testing."""
+    creds = MagicMock()
+    creds.api_id = 123456
+    creds.api_hash = "test_hash"
+    creds.phone_number = "+1234567890"
+    return creds
+
+
+@pytest.fixture
+def sample_credentials() -> dict[str, Any]:
     """Sample credentials for testing."""
     return {
         "api_id": 123456,
         "api_hash": "test_hash_123",
-        "phone_number": "+1234567890"
+        "phone_number": "+1234567890",
     }
 
 
 @pytest.fixture
-def sample_chat() -> Dict[str, Any]:
+def sample_chat() -> dict[str, Any]:
     """Sample chat data for testing."""
     return {
         "id": -1001234567890,
         "title": "Test Group",
         "type": "Group",
-        "username": None
+        "username": None,
     }
 
 
 @pytest.fixture
-def sample_forward_config() -> Dict[str, Any]:
+def sample_forward_config() -> dict[str, Any]:
     """Sample forward configuration for testing."""
     return {
         "source_id": -1001234567890,
         "source_name": "Source Chat",
         "destination_id": -1000987654321,
         "destination_name": "Destination Chat",
-        "enabled": True
+        "enabled": True,
     }
 
 
@@ -93,15 +102,8 @@ def setup_test_environment() -> None:
 def pytest_configure(config: pytest.Config) -> None:
     """Configure pytest with custom markers."""
     config.addinivalue_line(
-        "markers",
-        "slow: marks tests as slow (deselect with '-m \"not slow\"')"
+        "markers", "slow: marks tests as slow (deselect with '-m \"not slow\"')"
     )
-    config.addinivalue_line(
-        "markers", "integration: marks tests as integration tests"
-    )
-    config.addinivalue_line(
-        "markers", "unit: marks tests as unit tests"
-    )
-    config.addinivalue_line(
-        "markers", "asyncio: marks tests as async tests"
-    )
+    config.addinivalue_line("markers", "integration: marks tests as integration tests")
+    config.addinivalue_line("markers", "unit: marks tests as unit tests")
+    config.addinivalue_line("markers", "asyncio: marks tests as async tests")

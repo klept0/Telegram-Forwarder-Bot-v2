@@ -1,8 +1,12 @@
 import json
 import os
 
-from source.utils.Constants import CHAT_FILE_PATH, IGNORE_CHATS_FILE_PATH, WANTED_USER_FILE_PATH
 from source.dialog.BaseDialog import BaseDialog
+from source.utils.Constants import (
+    CHAT_FILE_PATH,
+    IGNORE_CHATS_FILE_PATH,
+    WANTED_USER_FILE_PATH,
+)
 
 
 class Chat:
@@ -57,7 +61,7 @@ class Chat:
             }
             chats_list.append(chat_dict)
         #To get older channels first
-        chats_list = sorted(chats_list, key=lambda x: x["id"]) 
+        chats_list = sorted(chats_list, key=lambda x: x["id"])
         #Sort by title for better readability
         chats_list = sorted(chats_list, key=lambda x: x["title"])
         with open(CHAT_FILE_PATH, "w") as chats_file:
@@ -71,13 +75,13 @@ class Chat:
         Returns:
             list[Chat]: List of Chat objects loaded from file
         """
-        with open(CHAT_FILE_PATH, "r") as chats_file:
+        with open(CHAT_FILE_PATH) as chats_file:
             chats_list = json.load(chats_file)
         return [Chat(**chat) for chat in chats_list]
 
     @staticmethod
     def read_ignore_chats():
-        with open(IGNORE_CHATS_FILE_PATH, "r") as chats_file:
+        with open(IGNORE_CHATS_FILE_PATH) as chats_file:
             chats_list = json.load(chats_file)
         return [Chat(**chat) for chat in chats_list]
 
@@ -88,7 +92,7 @@ class Chat:
         Returns:
             list[Chat]: List of Chat objects for wanted users
         """
-        with open(WANTED_USER_FILE_PATH, "r") as user_file:
+        with open(WANTED_USER_FILE_PATH) as user_file:
             users_data = json.load(user_file)
             # Handle both single user (dict) and multiple users (list) formats
             if isinstance(users_data, dict):
@@ -120,7 +124,7 @@ class Chat:
         chats = Chat.read()
         ignore_list = []
         dialog = BaseDialog()
-        
+
         while True:
             choice = await dialog.list_chats_terminal(chats, "ignore")
             if choice == -1:
@@ -177,7 +181,7 @@ class Chat:
         id_padded = f"ID: {self.id:<15}"
         username_padded = f"Username: {self.username if self.username else '':<30}"
         title_padded = f"Title: {self.title:<100}"
-        
+
         display_parts = [
             f"[{type_color}]{type_padded}[/]",
             f"[dim]{id_padded}[/]",
@@ -193,7 +197,7 @@ class Chat:
         id_padded = f"ID: {self.id:<15}"
         username_padded = f"Username: {self.username if self.username else '':<30}"
         title_padded = f"Title: {self.title:<100}"
-        
+
         display_parts = [
             type_padded,
             id_padded,

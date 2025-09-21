@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Telegram Forwarder Bot</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 20px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #eee;
+        }
+        .status-card {
+            background: #f8f9fa;
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-left: 4px solid #007bff;
+        }
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+        .status-label {
+            font-weight: 500;
+            color: #666;
+        }
+        .status-value {
+            font-weight: 600;
+        }
+        .section {
+            margin-bottom: 30px;
+        }
+        .section h2 {
+            color: #333;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        .btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 8px;
+        }
+        .btn:hover {
+            background: #0056b3;
+        }
+        .btn-danger {
+            background: #dc3545;
+        }
+        .btn-danger:hover {
+            background: #c82333;
+        }
+        .btn-success {
+            background: #28a745;
+        }
+        .btn-success:hover {
+            background: #218838;
+        }
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        .table th, .table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        .table th {
+            background-color: #f8f9fa;
+            font-weight: 600;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .alert {
+            padding: 12px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+        }
+        .alert-success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .alert-error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📱 Telegram Forwarder Bot</h1>
+            <p>Manage your message forwarding configurations</p>
+        </div>
+
+        <div id="alert" class="hidden"></div>
+
+        <div class="status-card">
+            <h3>Bot Status</h3>
+            <div class="status-item">
+                <span class="status-label">Status:</span>
+                <span class="status-value" id="bot-status">Loading...</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Active Forwards:</span>
+                <span class="status-value" id="active-forwards">0</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Current Task:</span>
+                <span class="status-value" id="current-task">None</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Uptime:</span>
+                <span class="status-value" id="uptime">00:00:00</span>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Control Panel</h2>
+            <button class="btn btn-success" onclick="startForwarding()">Start Forwarding</button>
+            <button class="btn btn-danger" onclick="stopForwarding()">Stop Forwarding</button>
+            <button class="btn" onclick="refreshStatus()">Refresh Status</button>
+        </div>
+
+        <div class="section">
+            <h2>Forwarding Configurations</h2>
+            <button class="btn" onclick="showAddForm()">Add New Forward</button>
+            <table class="table" id="forwards-table">
+                <thead>
+                    <tr>
+                        <th>Source</th>
+                        <th>Destination</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="forwards-body">
+                    <tr>
+                        <td colspan="4">Loading...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="section" id="add-form" style="display: none;">
+            <h2>Add New Forward Configuration</h2>
+            <form onsubmit="addForward(event)">
+                <div class="form-group">
+                    <label for="source-id">Source Chat ID:</label>
+                    <input type="number" id="source-id" required>
+                </div>
+                <div class="form-group">
+                    <label for="source-name">Source Chat Name:</label>
+                    <input type="text" id="source-name" required>
+                </div>
+                <div class="form-group">
+                    <label for="dest-id">Destination Chat ID:</label>
+                    <input type="number" id="dest-id" required>
+                </div>
+                <div class="form-group">
+                    <label for="dest-name">Destination Chat Name:</label>
+                    <input type="text" id="dest-name" required>
+                </div>
+                <button type="submit" class="btn">Add Forward</button>
+                <button type="button" class="btn" onclick="hideAddForm()">Cancel</button>
+            </form>
+        </div>
+
+        <div class="section">
+            <h2>Available Chats</h2>
+            <button class="btn" onclick="loadChats()">Load Chats</button>
+            <table class="table" id="chats-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Title</th>
+                        <th>Type</th>
+                        <th>Username</th>
+                    </tr>
+                </thead>
+                <tbody id="chats-body">
+                    <tr>
+                        <td colspan="4">Click "Load Chats" to view available chats</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        let startTime = Date.now();
+
+        // Update uptime every second
+        setInterval(() => {
+            const uptime = Math.floor((Date.now() - startTime) / 1000);
+            const hours = Math.floor(uptime / 3600);
+            const minutes = Math.floor((uptime % 3600) / 60);
+            const seconds = uptime % 60;
+            document.getElementById('uptime').textContent =
+                `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        }, 1000);
+
+        // Load initial data
+        window.onload = function() {
+            refreshStatus();
+            loadForwards();
+        };
+
+        function showAlert(message, type = 'success') {
+            const alert = document.getElementById('alert');
+            alert.className = `alert alert-${type}`;
+            alert.textContent = message;
+            alert.classList.remove('hidden');
+            setTimeout(() => alert.classList.add('hidden'), 5000);
+        }
+
+        async function refreshStatus() {
+            try {
+                const response = await fetch('/api/status');
+                const data = await response.json();
+                document.getElementById('bot-status').textContent = data.status;
+                document.getElementById('active-forwards').textContent = data.active_forwards;
+                document.getElementById('current-task').textContent = data.current_task || 'None';
+            } catch (error) {
+                console.error('Error refreshing status:', error);
+                showAlert('Failed to refresh status', 'error');
+            }
+        }
+
+        async function loadForwards() {
+            try {
+                const response = await fetch('/api/forwards');
+                const forwards = await response.json();
+                const tbody = document.getElementById('forwards-body');
+
+                if (forwards.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4">No forwarding configurations found</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = forwards.map(forward => `
+                    <tr>
+                        <td>${forward.source_name} (${forward.source_id})</td>
+                        <td>${forward.destination_name} (${forward.destination_id})</td>
+                        <td>
+                            <span style="color: ${forward.enabled ? 'green' : 'red'}">
+                                ${forward.enabled ? 'Enabled' : 'Disabled'}
+                            </span>
+                        </td>
+                        <td>
+                            <button class="btn" onclick="toggleForward(${forward.source_id})">
+                                ${forward.enabled ? 'Disable' : 'Enable'}
+                            </button>
+                            <button class="btn btn-danger" onclick="deleteForward(${forward.source_id})">
+                                Delete
+                            </button>
+                        </td>
+                    </tr>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading forwards:', error);
+                showAlert('Failed to load forwarding configurations', 'error');
+            }
+        }
+
+        async function loadChats() {
+            try {
+                const response = await fetch('/api/chats');
+                const chats = await response.json();
+                const tbody = document.getElementById('chats-body');
+
+                tbody.innerHTML = chats.map(chat => `
+                    <tr>
+                        <td>${chat.id}</td>
+                        <td>${chat.title}</td>
+                        <td>${chat.type}</td>
+                        <td>${chat.username || '-'}</td>
+                    </tr>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading chats:', error);
+                showAlert('Failed to load chats', 'error');
+            }
+        }
+
+        async function startForwarding() {
+            try {
+                const response = await fetch('/api/start-forwarding', { method: 'POST' });
+                const result = await response.json();
+                showAlert(result.message);
+                refreshStatus();
+            } catch (error) {
+                console.error('Error starting forwarding:', error);
+                showAlert('Failed to start forwarding', 'error');
+            }
+        }
+
+        async function stopForwarding() {
+            try {
+                const response = await fetch('/api/stop-forwarding', { method: 'POST' });
+                const result = await response.json();
+                showAlert(result.message);
+                refreshStatus();
+            } catch (error) {
+                console.error('Error stopping forwarding:', error);
+                showAlert('Failed to stop forwarding', 'error');
+            }
+        }
+
+        async function addForward(event) {
+            event.preventDefault();
+
+            const data = {
+                source_id: parseInt(document.getElementById('source-id').value),
+                source_name: document.getElementById('source-name').value,
+                destination_id: parseInt(document.getElementById('dest-id').value),
+                destination_name: document.getElementById('dest-name').value
+            };
+
+            try {
+                const response = await fetch('/api/forwards', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                const result = await response.json();
+                showAlert(result.message);
+                loadForwards();
+                hideAddForm();
+                event.target.reset();
+            } catch (error) {
+                console.error('Error adding forward:', error);
+                showAlert('Failed to add forwarding configuration', 'error');
+            }
+        }
+
+        async function toggleForward(sourceId) {
+            try {
+                const response = await fetch(`/api/forwards/${sourceId}/toggle`, { method: 'POST' });
+                const result = await response.json();
+                showAlert(result.message);
+                loadForwards();
+            } catch (error) {
+                console.error('Error toggling forward:', error);
+                showAlert('Failed to toggle forwarding configuration', 'error');
+            }
+        }
+
+        async function deleteForward(sourceId) {
+            if (!confirm('Are you sure you want to delete this forwarding configuration?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/forwards/${sourceId}`, { method: 'DELETE' });
+                const result = await response.json();
+                showAlert(result.message);
+                loadForwards();
+            } catch (error) {
+                console.error('Error deleting forward:', error);
+                showAlert('Failed to delete forwarding configuration', 'error');
+            }
+        }
+
+        function showAddForm() {
+            document.getElementById('add-form').style.display = 'block';
+        }
+
+        function hideAddForm() {
+            document.getElementById('add-form').style.display = 'none';
+        }
+    </script>
+</body>
+</html>

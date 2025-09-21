@@ -1,9 +1,9 @@
 import json
 import os.path
 
+from source.dialog.BaseDialog import BaseDialog
 from source.model.Chat import Chat
 from source.utils.Constants import FORWARD_CONFIG_FILE_PATH
-from source.dialog.BaseDialog import BaseDialog
 
 
 class ForwardConfig:
@@ -24,7 +24,7 @@ class ForwardConfig:
 
     @staticmethod
     def read():
-        with open(FORWARD_CONFIG_FILE_PATH, "r") as file:
+        with open(FORWARD_CONFIG_FILE_PATH) as file:
             data = json.load(file)
             return [ForwardConfig(**forwardConfig) for forwardConfig in data]
 
@@ -34,7 +34,7 @@ class ForwardConfig:
         chats = chat.read()
         forwardConfigList = []
         dialog = BaseDialog()
-        
+
         while True:
             forwardConfig = ForwardConfig()
             sourceChoice = await dialog.list_chats_terminal(chats, "source")

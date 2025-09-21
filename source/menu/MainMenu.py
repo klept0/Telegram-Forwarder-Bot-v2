@@ -1,12 +1,15 @@
+import asyncio
+
 from InquirerPy import inquirer
-from source.utils.Console import Terminal
-from source.model.Credentials import Credentials
+
 from source.core.Telegram import Telegram
-from source.dialog.ForwardDialog import ForwardDialog
 from source.dialog.DeleteDialog import DeleteDialog
 from source.dialog.FindUserDialog import FindUserDialog
+from source.dialog.ForwardDialog import ForwardDialog
 from source.menu.AccountSelector import AccountSelector
-import asyncio
+from source.model.Credentials import Credentials
+from source.utils.Console import Terminal
+
 
 class MainMenu:
     def __init__(self, telegram):
@@ -103,13 +106,13 @@ class MainMenu:
 
     async def delete_messages(self):
         ignore_chats = await self.delete_dialog.get_config()
-        self.status = f"Deleting messages..."
+        self.status = "Deleting messages..."
         await self.telegram.delete(ignore_chats)
         self.status = "Idle"
 
     async def find_user(self):
         config = await self.find_user_dialog.get_config()
-        self.status = f"Searching for user..."
+        self.status = "Searching for user..."
         await self.telegram.find_user(config)
         self.status = "Idle"
 

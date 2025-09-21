@@ -1,0 +1,85 @@
+version: '3.8'
+
+services:
+  telegram-forwarder:
+    build: .
+    container_name: telegram-forwarder-bot
+    restart: unless-stopped
+    environment:
+      - TELEGRAM_API_ID=${TELEGRAM_API_ID}
+      - TELEGRAM_API_HASH=${TELEGRAM_API_HASH}
+      - BOT_TOKEN=${BOT_TOKEN}
+      - LOG_LEVEL=INFO
+      - MAX_CONCURRENT_TASKS=3
+      - MESSAGE_QUEUE_DELAY=1.0
+    volumes:
+      - ./resources:/app/resources
+      - ./media:/app/media
+      - ./sessions:/app/sessions
+      - ./logs:/app/logs
+    networks:
+      - telegram-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "print('Bot is healthy')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Optional: PostgreSQL for advanced data persistence
+  postgres:
+    image: postgres:15-alpine
+    container_name: telegram-forwarder-db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=telegram_forwarder
+      - POSTGRES_USER=telegram_user
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-changeme123}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    networks:
+      - telegram-network
+    profiles:
+      - db
+
+  # Optional: Redis for caching and session management
+  redis:
+    image: redis:7-alpine
+    container_name: telegram-forwarder-cache
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - telegram-network
+    profiles:
+      - cache
+
+  # Optional: Monitoring with Prometheus metrics
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: telegram-forwarder-monitoring
+    restart: unless-stopped
+    volumes:
+      - ./docker/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - telegram-network
+    profiles:
+      - monitoring
+
+networks:
+  telegram-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  prometheus_data:

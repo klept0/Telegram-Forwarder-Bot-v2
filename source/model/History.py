@@ -1,5 +1,7 @@
 import json
+
 from source.utils.Constants import HISTORY_FILE_PATH
+
 
 class History:
     def __init__(self):
@@ -28,7 +30,7 @@ class History:
 
     def load_data(self):
         try:
-            with open(HISTORY_FILE_PATH, 'r') as file:
+            with open(HISTORY_FILE_PATH) as file:
                 json_data = json.load(file)
                 return self.convert_from_json_format(json_data)
         except Exception:
