@@ -1,10 +1,13 @@
 
+from datetime import datetime
+
 from telethon import TelegramClient, events
 from telethon.tl.custom import Message
 
 from source.service.HistoryService import HistoryService
 from source.service.MessageForwardService import MessageForwardService
 from source.service.MessageQueue import MessageQueue
+from source.utils.DateUtils import DateUtils
 
 
 class Forward:
@@ -45,10 +48,48 @@ class Forward:
     async def history_handler(self) -> None:
         last_message_id = 0
         for source in self.forward_config_map:
-            await self._forward_chat_history(source, last_message_id)
+            config = self.forward_config_map[source]
+            await self._forward_chat_history(
+                source, last_message_id,
+                config.start_date, config.end_date
+            )
 
-    async def _forward_chat_history(self, source: int, last_message_id: int) -> None:
-        messages = await self.client.get_messages(source, min_id=last_message_id, limit=None)
+    async def _forward_chat_history(self, source: int, last_message_id: int,
+                                    start_date: str | None = None,
+                                    end_date: str | None = None) -> None:
+        """Forward chat history with optional date filtering.
+
+        Args:
+            source: Source chat ID
+            last_message_id: Last processed message ID
+            start_date: Start date filter (YYYY-MM-DD) or None
+            end_date: End date filter (YYYY-MM-DD) or None
+        """
+        # Prepare date filters for Telethon
+        offset_date = None
+        max_date = None
+
+        if start_date:
+            start_dt = DateUtils.parse_date(start_date)
+            if start_dt:
+                # Convert to datetime at start of day
+                offset_date = datetime.combine(start_dt, datetime.min.time())
+
+        if end_date:
+            end_dt = DateUtils.parse_date(end_date)
+            if end_dt:
+                # Convert to datetime at end of day
+                max_date = datetime.combine(end_dt, datetime.max.time())
+
+        # Get messages with date filtering
+        messages = await self.client.get_messages(
+            source,
+            min_id=last_message_id,
+            offset_date=offset_date,
+            max_date=max_date,
+            limit=None
+        )
+
         destination_id = self._get_destination_id(source)
         for message in reversed(messages):
             try:

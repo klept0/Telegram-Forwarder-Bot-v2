@@ -8,11 +8,14 @@ from source.utils.Constants import FORWARD_CONFIG_FILE_PATH
 
 class ForwardConfig:
 
-    def __init__(self, sourceID=None, sourceName=None, destinationID=None, destinationName=None):
+    def __init__(self, sourceID=None, sourceName=None, destinationID=None,
+                 destinationName=None, start_date=None, end_date=None):
         self.sourceID = sourceID
         self.sourceName = sourceName
         self.destinationID = destinationID
         self.destinationName = destinationName
+        self.start_date = start_date  # ISO format date string (YYYY-MM-DD)
+        self.end_date = end_date      # ISO format date string (YYYY-MM-DD)
 
     @staticmethod
     def write(forward_config_list):
@@ -61,4 +64,12 @@ class ForwardConfig:
             return await ForwardConfig.scan()
 
     def __repr__(self):
-        return f'sourceName= "{self.sourceName}", destinationName= "{self.destinationName}"'
+        date_info = ""
+        if self.start_date or self.end_date:
+            date_parts = []
+            if self.start_date:
+                date_parts.append(f"from {self.start_date}")
+            if self.end_date:
+                date_parts.append(f"to {self.end_date}")
+            date_info = f" ({' '.join(date_parts)})"
+        return f'"{self.sourceName}" → "{self.destinationName}"{date_info}'
