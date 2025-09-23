@@ -7,7 +7,10 @@ from telethon.tl.custom import Message
 from source.service.HistoryService import HistoryService
 from source.service.MessageForwardService import MessageForwardService
 from source.service.MessageQueue import MessageQueue
+from source.utils.Console import Terminal
 from source.utils.DateUtils import DateUtils
+
+console = Terminal.console
 
 
 class Forward:
@@ -67,7 +70,7 @@ class Forward:
         """
         # Prepare date filters for Telethon
         offset_date = None
-        max_date = None
+        end_datetime = None
 
         if start_date:
             start_dt = DateUtils.parse_date(start_date)
@@ -78,26 +81,39 @@ class Forward:
         if end_date:
             end_dt = DateUtils.parse_date(end_date)
             if end_dt:
-                # Convert to datetime at end of day
-                max_date = datetime.combine(end_dt, datetime.max.time())
+                # Convert to datetime at end of day for filtering
+                end_datetime = datetime.combine(end_dt, datetime.max.time())
 
-        # Get messages with date filtering
+        # Get messages with date filtering (Telethon doesn't support max_date)
+        console.print("[bold blue]Retrieving messages from chat...[/bold blue]")
         messages = await self.client.get_messages(
             source,
             min_id=last_message_id,
             offset_date=offset_date,
-            max_date=max_date,
             limit=None
         )
 
+        # Filter messages to only include those before end_datetime
+        if end_datetime:
+            messages = [msg for msg in messages if msg.date <= end_datetime]
+
+        total_messages = len(messages)
+        console.print(f"[bold green]Found {total_messages} messages to forward[/bold green]")
+
         destination_id = self._get_destination_id(source)
-        for message in reversed(messages):
+        for i, message in enumerate(reversed(messages), 1):
+            percentage = (i / total_messages) * 100 if total_messages > 0 else 100
+            console.print(f"[bold yellow]Progress: {i}/{total_messages} ({percentage:.1f}%)[/bold yellow]", end="\r")
+            
             try:
                 reply_message = await self._handle_reply(message, destination_id)
                 await self._forward_message(destination_id, message, reply_message)
                 last_message_id = max(last_message_id, message.id)
             except Exception as e:
                 print(f"Error forwarding message: {e}")
+
+        # Clear the progress line and show completion
+        console.print(f"[bold green]✓ Completed forwarding {total_messages} messages[/bold green]")
 
     def _get_destination_id(self, source_id: int) -> int | None:
         config = self.forward_config_map.get(source_id)

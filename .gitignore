@@ -205,3 +205,12 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+resources/chats.json
+.gitignore
+resources/forwardConfig.json
+.gitignore
+sessions/session_+18138461909.session
+.gitignore
+resources/credentials.json
+sessions/session_+18138461909.session-journal
+source/service/__pycache__/Forward.cpython-313.pyc
