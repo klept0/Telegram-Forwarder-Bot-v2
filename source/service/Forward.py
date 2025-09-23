@@ -1,6 +1,7 @@
 
 from datetime import datetime
 
+import pytz
 from telethon import TelegramClient, events
 from telethon.tl.custom import Message
 
@@ -82,7 +83,8 @@ class Forward:
             end_dt = DateUtils.parse_date(end_date)
             if end_dt:
                 # Convert to datetime at end of day for filtering
-                end_datetime = datetime.combine(end_dt, datetime.max.time())
+                end_datetime = datetime.combine(end_dt, datetime.max.time()) \
+                    .replace(tzinfo=pytz.UTC)
 
         # Get messages with date filtering (Telethon doesn't support max_date)
         console.print("[bold blue]Retrieving messages from chat...[/bold blue]")

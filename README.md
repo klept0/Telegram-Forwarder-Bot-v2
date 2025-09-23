@@ -8,6 +8,8 @@
 
 An asynchronous Telegram message forwarding bot with a modern Python architecture, built with Telethon and Rich.
 
+This project is based on the [original Telegram Forwarder Bot](https://github.com/MohammadShabib/Telegram-Forwarder-Bot) by Mohammad Shabib.
+
 ## Features
 
 - 🚀 **Async/Await**: Fully asynchronous architecture for high performance
@@ -305,5 +307,4 @@ For questions or issues:
 
 - Open an [issue](https://github.com/klept0/Telegram-Forwarder-Bot-v2/issues)
 - Check the [documentation](https://github.com/klept0/Telegram-Forwarder-Bot-v2/wiki)
-- Join our [Discord](https://discord.gg/example) community
 
