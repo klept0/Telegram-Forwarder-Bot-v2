@@ -9,7 +9,7 @@ from source.utils.Constants import FORWARD_CONFIG_FILE_PATH
 class ForwardConfig:
 
     def __init__(self, sourceID=None, sourceName=None, destinationID=None,
-                 destinationName=None, start_date=None, end_date=None):
+                 destinationName=None, start_date=None, end_date=None, **kwargs):
         self.sourceID = sourceID
         self.sourceName = sourceName
         self.destinationID = destinationID
