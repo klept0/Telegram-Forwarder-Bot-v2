@@ -19,17 +19,21 @@ An asynchronous Telegram message forwarding bot with a modern Python architectur
 - 🎯 **Rate Limiting**: Built-in rate limiting to respect Telegram's API limits
 - 🎨 **Rich Console UI**: Beautiful terminal interface with Rich
 - 🔒 **Secure**: Environment variable management for sensitive data
-- 🧪 **Well-Tested**: Comprehensive test suite with pytest
 - 📝 **Type-Safe**: Full type hints with mypy support
 
 ## Quick Start
 
 ### Prerequisites
 
-- Python 3.10 or higher
+- Python 3.10 or higher (for local installation)
 - A Telegram account with API credentials
+- Docker & Docker Compose (for containerized deployment)
 
-### Installation
+### Installation Methods
+
+Choose one of the following installation methods:
+
+#### Option 1: Local Installation (Recommended for Development)
 
 1. **Clone the repository:**
 
@@ -63,6 +67,52 @@ An asynchronous Telegram message forwarding bot with a modern Python architectur
    ```bash
    python main.py
    ```
+
+#### Option 2: Docker Installation (Recommended for Production)
+
+1. **Clone the repository:**
+
+   ```bash
+   git clone https://github.com/klept0/Telegram-Forwarder-Bot-v2.git
+   cd Telegram-Forwarder-Bot-v2
+   ```
+
+2. **Set up environment variables:**
+
+   ```bash
+   cp .env.example .env
+   # Edit .env with your Telegram API credentials
+   ```
+
+3. **Run with Docker Compose:**
+
+   ```bash
+   docker-compose up --build
+   ```
+
+   Or run in background:
+
+   ```bash
+   docker-compose up -d --build
+   ```
+
+4. **View logs:**
+
+   ```bash
+   docker-compose logs -f telegram-forwarder
+   ```
+
+5. **Stop the bot:**
+
+   ```bash
+   docker-compose down
+   ```
+
+**Docker Notes:**
+
+- Configuration files are stored in Docker volumes for persistence
+- Environment variables are loaded from the `.env` file
+- The bot runs as a non-root user for security
 
 ## Configuration
 
@@ -142,9 +192,6 @@ ruff check source/
 
 # Type check
 mypy source/
-
-# Run tests
-pytest tests/ -v --cov=source
 ```
 
 ### Pre-commit Hooks
@@ -156,32 +203,10 @@ pre-commit install
 pre-commit run --all-files
 ```
 
-### Testing
-
-Run the test suite:
-
-```bash
-# Run all tests
-pytest
-
-# Run with coverage
-pytest --cov=source --cov-report=html
-
-# Run specific test file
-pytest tests/test_bot.py
-
-# Run async tests only
-pytest -m "asyncio"
-```
-
 ### Project Structure
 
 ```text
 telegram-forwarder-bot-v2/
-├── .github/
-│   ├── workflows/
-│   │   └── ci.yml
-│   └── copilot-instructions.md
 ├── source/
 │   ├── core/
 │   │   ├── __init__.py
@@ -211,14 +236,11 @@ telegram-forwarder-bot-v2/
 │       ├── Console.py
 │       ├── Constants.py
 │       └── RateLimiter.py
-├── tests/
-│   ├── __init__.py
-│   ├── conftest.py
-│   ├── test_bot.py
-│   └── ...
 ├── .env.example
 ├── .gitignore
 ├── .pre-commit-config.yaml
+├── Dockerfile
+├── docker-compose.yml
 ├── main.py
 ├── pyproject.toml
 ├── requirements.txt
@@ -254,7 +276,6 @@ telegram-forwarder-bot-v2/
 
 - Follow PEP 8 style guidelines
 - Add type hints to all functions and methods
-- Write comprehensive tests for new features
 - Update documentation for API changes
 - Use conventional commit messages
 
