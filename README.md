@@ -12,7 +12,9 @@ An asynchronous Telegram message forwarding bot with a modern Python architectur
 
 - 🚀 **Async/Await**: Fully asynchronous architecture for high performance
 - 🔄 **Live Forwarding**: Real-time message forwarding with event handlers
-- 📚 **History Forwarding**: Bulk message forwarding from chat history
+- 📚 **History Forwarding**: Bulk message forwarding from chat history with date filtering
+- 📅 **Month Filtering**: Forward messages from specific months or date ranges
+- 📊 **Progress Tracking**: Real-time progress indicators showing completion percentage
 - 👥 **Multi-Account Support**: Switch between multiple Telegram accounts
 - 🎯 **Rate Limiting**: Built-in rate limiting to respect Telegram's API limits
 - 🎨 **Rich Console UI**: Beautiful terminal interface with Rich
@@ -112,7 +114,17 @@ Configure message forwarding by specifying:
 
 - **Source Chat**: The chat to forward messages from
 - **Destination Chat**: The chat to forward messages to
+- **Date Filtering**: Choose from:
+  - No date filter (forward all messages)
+  - Filter by specific month
+  - Filter by custom date range
 - **Enabled**: Whether forwarding is active
+
+When forwarding historical messages, the bot displays real-time progress indicators showing:
+
+- Number of messages found
+- Current progress (X/Y messages)
+- Percentage completion
 
 ## Development
 

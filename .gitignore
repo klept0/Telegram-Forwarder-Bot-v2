@@ -182,9 +182,9 @@ cython_debug/
 .abstra/
 
 # Visual Studio Code
-#  Visual Studio Code specific template is maintained in a separate VisualStudioCode.gitignore 
+#  Visual Studio Code specific template is maintained in a separate VisualStudioCode.gitignore
 #  that can be found at https://github.com/github/gitignore/blob/main/Global/VisualStudioCode.gitignore
-#  and can be added to the global gitignore or merged into this file. However, if you prefer, 
+#  and can be added to the global gitignore or merged into this file. However, if you prefer,
 #  you could uncomment the following to ignore the entire vscode folder
 # .vscode/
 
@@ -205,12 +205,23 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
-resources/chats.json
-.gitignore
-resources/forwardConfig.json
-.gitignore
-sessions/session_+18138461909.session
-.gitignore
+
+# Telegram Forwarder Bot specific exclusions
+# Sensitive data and runtime files
 resources/credentials.json
-sessions/session_+18138461909.session-journal
-source/service/__pycache__/Forward.cpython-313.pyc
+resources/chats.json
+resources/forwardConfig.json
+resources/history.json
+resources/ignoreChats.json
+resources/wantedUser.json
+sessions/
+media/
+logs/
+
+# Development and testing artifacts
+.coverage
+htmlcov/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.log
