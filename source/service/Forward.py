@@ -1,4 +1,5 @@
 
+import asyncio
 from datetime import datetime
 
 import pytz
@@ -118,56 +119,77 @@ class Forward:
         processed_count = 0
         chunk_offset_id = 0  # Start from the most recent message
 
+        # Start background status updater for queue monitoring
+        status_task = asyncio.create_task(self._periodic_status_update())
+
+        try:
+            while True:
+                # Get next chunk of messages
+                messages = await self.client.get_messages(
+                    source,
+                    limit=CHUNK_SIZE,
+                    offset_id=chunk_offset_id,
+                    offset_date=offset_date,
+                    min_id=last_message_id
+                )
+
+                if not messages:
+                    break  # No more messages
+
+                # Filter messages by end date if specified
+                if end_datetime:
+                    messages = [msg for msg in messages if msg.date <= end_datetime]
+
+                if not messages:
+                    break  # No messages in this date range
+
+                # Process messages in batches
+                for i, message in enumerate(reversed(messages), 1):
+                    current_total = processed_count + i
+                    percentage = (current_total / total_messages) * 100 if total_messages > 0 else 0
+
+                    console.print(f"[bold yellow]Progress: {current_total}/{total_messages} ({percentage:.1f}%)[/bold yellow]", end="\r")
+
+                    try:
+                        reply_message = await self._handle_reply(message, destination_id)
+                        await self._forward_message(destination_id, message, reply_message)
+                        last_message_id = max(last_message_id, message.id)
+                    except Exception as e:
+                        console.print(f"[bold red]Error forwarding message {message.id}: {e}[/bold red]")
+
+                    # Save progress every BATCH_SIZE messages
+                    if current_total % BATCH_SIZE == 0:
+                        await self._save_progress(source, last_message_id)
+
+                processed_count += len(messages)
+                chunk_offset_id = messages[-1].id  # Use last message ID for next chunk
+
+                # Break if we've processed all messages in the date range
+                if len(messages) < CHUNK_SIZE:
+                    break
+
+            # Final progress save
+            await self._save_progress(source, last_message_id)
+
+            # Clear the progress line and show completion
+            console.print(f"[bold green]✓ Completed forwarding {processed_count} messages[/bold green]")
+
+        finally:
+            # Stop the status updater
+            status_task.cancel()
+            try:
+                await status_task
+            except asyncio.CancelledError:
+                pass
+
+    async def _periodic_status_update(self) -> None:
+        """Periodically display queue status during forwarding operations."""
         while True:
-            # Get next chunk of messages
-            messages = await self.client.get_messages(
-                source,
-                limit=CHUNK_SIZE,
-                offset_id=chunk_offset_id,
-                offset_date=offset_date,
-                min_id=last_message_id
-            )
-
-            if not messages:
-                break  # No more messages
-
-            # Filter messages by end date if specified
-            if end_datetime:
-                messages = [msg for msg in messages if msg.date <= end_datetime]
-
-            if not messages:
-                break  # No messages in this date range
-
-            # Process messages in batches
-            for i, message in enumerate(reversed(messages), 1):
-                current_total = processed_count + i
-                percentage = (current_total / total_messages) * 100 if total_messages > 0 else 0
-
-                console.print(f"[bold yellow]Progress: {current_total}/{total_messages} ({percentage:.1f}%)[/bold yellow]", end="\r")
-
-                try:
-                    reply_message = await self._handle_reply(message, destination_id)
-                    await self._forward_message(destination_id, message, reply_message)
-                    last_message_id = max(last_message_id, message.id)
-                except Exception as e:
-                    console.print(f"[bold red]Error forwarding message {message.id}: {e}[/bold red]")
-
-                # Save progress every BATCH_SIZE messages
-                if current_total % BATCH_SIZE == 0:
-                    await self._save_progress(source, last_message_id)
-
-            processed_count += len(messages)
-            chunk_offset_id = messages[-1].id  # Use last message ID for next chunk
-
-            # Break if we've processed all messages in the date range
-            if len(messages) < CHUNK_SIZE:
-                break
-
-        # Final progress save
-        await self._save_progress(source, last_message_id)
-
-        # Clear the progress line and show completion
-        console.print(f"[bold green]✓ Completed forwarding {processed_count} messages[/bold green]")
+            await asyncio.sleep(2)  # Update every 2 seconds
+            if hasattr(self, 'queue') and self.queue:
+                queue_size = self.queue.qsize()
+                current_task = str(self.queue.current_task) if self.queue.current_task else "None"
+                console.print(f"[dim]Queue Status: {queue_size} pending | Current: {current_task}[/dim]", end="\r")
 
     async def _get_total_message_count(self, source: int, offset_date: datetime | None,
                                      end_datetime: datetime | None) -> int:
