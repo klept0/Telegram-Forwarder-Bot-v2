@@ -218,6 +218,7 @@ resources/forward_progress.json
 sessions/
 media/
 logs/
+wiki-content.md
 
 # Development and testing artifacts
 .coverage
