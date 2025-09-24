@@ -22,6 +22,8 @@ This project is based on the [original Telegram Forwarder Bot](https://github.co
 - 🎨 **Rich Console UI**: Beautiful terminal interface with Rich
 - 🔒 **Secure**: Environment variable management for sensitive data
 - 📝 **Type-Safe**: Full type hints with mypy support
+- 🐳 **Docker Support**: Containerized deployment with Docker Compose
+- 🔧 **Modern Tooling**: Black, isort, ruff, mypy, and pre-commit hooks
 
 ## Quick Start
 

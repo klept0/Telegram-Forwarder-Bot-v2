@@ -42,7 +42,7 @@ class Forward:
             reply_message = await self._handle_reply(event.message, destination_id)
             await self._forward_message(destination_id, event.message, reply_message)
         except Exception as e:
-            print(f"Error handling message: {e}")
+            console.print(f"[bold red]Error handling message:[/bold red] {e}")
 
     async def album_handler(self, event: events.Album.Event) -> None:
         try:
@@ -52,7 +52,7 @@ class Forward:
             reply_message = await self._get_album_reply(event.messages, destination_id)
             await self._forward_album(destination_id, event, reply_message)
         except Exception as e:
-            print(f"Error handling album: {e}")
+            console.print(f"[bold red]Error handling album:[/bold red] {e}")
 
     async def history_handler(self) -> None:
         for source in self.forward_config_map:
@@ -324,7 +324,7 @@ class Forward:
             if sent_message:
                 self._update_history(message, sent_message)
         except Exception as e:
-            print(f"Error forwarding message: {e}")
+            console.print(f"[bold red]Error forwarding message:[/bold red] {e}")
 
     async def _forward_album(self, destination_id: int, event: events.Album.Event, reply_to: int | None = None) -> None:
         try:
@@ -332,7 +332,7 @@ class Forward:
             if sent_messages:
                 self._update_album_history(event, sent_messages, destination_id)
         except Exception as e:
-            print(f"Error forwarding album: {e}")
+            console.print(f"[bold red]Error forwarding album:[/bold red] {e}")
 
     def _update_history(self, source_message: Message, sent_message: Message) -> None:
         self.history.add_mapping(source_message.chat_id, source_message.id, sent_message.chat_id, sent_message.id)

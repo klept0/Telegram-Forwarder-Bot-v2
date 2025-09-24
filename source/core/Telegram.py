@@ -76,7 +76,7 @@ class Telegram:
                     continue
                 await self.message_service.process_user_messages(chat, wanted_user, message_limit)
             except Exception as e:
-                print(f"Error processing dialog: {e}")
+                self.console.print(f"[bold red]Error processing dialog:[/bold red] {e}")
 
     async def start_forward_live(self, forward_config):
         forward = Forward(self.client, forward_config, self.queue)
