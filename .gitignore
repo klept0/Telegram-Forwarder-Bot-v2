@@ -214,6 +214,7 @@ resources/forwardConfig.json
 resources/history.json
 resources/ignoreChats.json
 resources/wantedUser.json
+resources/forward_progress.json
 sessions/
 media/
 logs/

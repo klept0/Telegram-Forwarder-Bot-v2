@@ -39,6 +39,7 @@ class ForwardDialog(BaseDialog):
         date_options = [
             {"name": "No date filter (forward all messages)", "value": "none"},
             {"name": "Filter by specific month", "value": "month"},
+            {"name": "Filter by multiple months", "value": "multi_month"},
             {"name": "Filter by date range", "value": "range"}
         ]
 
@@ -48,6 +49,8 @@ class ForwardDialog(BaseDialog):
             for config in forward_config_list:
                 if date_choice == "month":
                     start_date, end_date = await self._get_month_selection()
+                elif date_choice == "multi_month":
+                    start_date, end_date = await self._get_multi_month_selection()
                 elif date_choice == "range":
                     start_date, end_date = await self._get_date_range_selection()
                 else:
@@ -87,6 +90,47 @@ class ForwardDialog(BaseDialog):
         start_date, end_date = DateUtils.get_month_date_range(
             int(year_choice), int(month_choice)
         )
+
+        return (DateUtils.format_date(start_date),
+                DateUtils.format_date(end_date))
+
+    async def _get_multi_month_selection(self):
+        """Get multiple month selection from user by selecting start and end months.
+
+        Returns:
+            Tuple of (start_date_str, end_date_str) spanning selected month range
+        """
+        # Get year first
+        current_year = DateUtils.get_current_month_range()[0].year
+        years = [str(y) for y in range(current_year - 5, current_year + 2)]
+        year_choice = await self.show_options(
+            "Select Year:",
+            [{"name": year, "value": year} for year in years]
+        )
+
+        # Get start month
+        months = [
+            {"name": f"{i:02d} - {m}", "value": str(i)}
+            for i, m in enumerate([
+                "January", "February", "March", "April", "May", "June",
+                "July", "August", "September", "October",
+                "November", "December"
+            ], 1)
+        ]
+
+        start_month_choice = await self.show_options("Select Start Month:", months)
+        end_month_choice = await self.show_options("Select End Month:", months)
+
+        start_month = int(start_month_choice)
+        end_month = int(end_month_choice)
+
+        if start_month > end_month:
+            self.console.print("[bold yellow]Start month is after end month, swapping them[/bold yellow]")
+            start_month, end_month = end_month, start_month
+
+        # Get date range from start of first month to end of last month
+        start_date, _ = DateUtils.get_month_date_range(int(year_choice), start_month)
+        _, end_date = DateUtils.get_month_date_range(int(year_choice), end_month)
 
         return (DateUtils.format_date(start_date),
                 DateUtils.format_date(end_date))
