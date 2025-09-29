@@ -1,6 +1,5 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
-import pytz
 import telethon
 
 from source.utils.Console import Terminal
@@ -56,7 +55,7 @@ class ChatService:
             str: Formatted date string in local timezone
         """
         if date.tzinfo is None:  # If naive datetime, assume UTC
-            date = date.replace(tzinfo=pytz.UTC)
+            date = date.replace(tzinfo=timezone.utc)
         local_date = date.astimezone(self.local_timezone)
         return local_date.strftime("%Y-%m-%d %H:%M:%S %Z")
 

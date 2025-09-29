@@ -1,8 +1,7 @@
 
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 
-import pytz
 from telethon import TelegramClient, events
 from telethon.tl.custom import Message
 
@@ -94,15 +93,16 @@ class Forward:
         if start_date:
             start_dt = DateUtils.parse_date(start_date)
             if start_dt:
-                # Convert to datetime at start of day
-                offset_date = datetime.combine(start_dt, datetime.min.time())
+                # Convert to datetime at start of day with UTC timezone
+                offset_date = datetime.combine(start_dt, datetime.min.time()) \
+                    .replace(tzinfo=timezone.utc)
 
         if end_date:
             end_dt = DateUtils.parse_date(end_date)
             if end_dt:
                 # Convert to datetime at end of day for filtering
                 end_datetime = datetime.combine(end_dt, datetime.max.time()) \
-                    .replace(tzinfo=pytz.UTC)
+                    .replace(tzinfo=timezone.utc)
 
         console.print("[bold blue]Retrieving messages from chat...[/bold blue]")
 

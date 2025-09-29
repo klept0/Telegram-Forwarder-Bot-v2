@@ -20,6 +20,7 @@ This project is based on the [original Telegram Forwarder Bot](https://github.co
 - 👥 **Multi-Account Support**: Switch between multiple Telegram accounts
 - 🎯 **Rate Limiting**: Built-in rate limiting to respect Telegram's API limits
 - 🎨 **Rich Console UI**: Beautiful terminal interface with Rich
+- 🌐 **Web Dashboard**: FastAPI-based web interface for remote management
 - 🔒 **Secure**: Environment variable management for sensitive data
 - 📝 **Type-Safe**: Full type hints with mypy support
 - 🐳 **Docker Support**: Containerized deployment with Docker Compose
@@ -118,6 +119,53 @@ Choose one of the following installation methods:
 - Environment variables are loaded from the `.env` file
 - The bot runs as a non-root user for security
 
+#### Option 3: Web Interface (FastAPI Dashboard)
+
+1. **Clone the repository:**
+
+   ```bash
+   git clone https://github.com/klept0/Telegram-Forwarder-Bot-v2.git
+   cd Telegram-Forwarder-Bot-v2
+   ```
+
+2. **Create virtual environment:**
+
+   ```bash
+   python -m venv .venv
+   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+   ```
+
+3. **Install dependencies with web extras:**
+
+   ```bash
+   pip install -e ".[web]"
+   ```
+
+4. **Set up environment variables:**
+
+   ```bash
+   cp .env.example .env
+   # Edit .env with your Telegram API credentials
+   ```
+
+5. **Run the web dashboard:**
+
+   ```bash
+   python web/app.py
+   ```
+
+6. **Open your browser:**
+
+   Navigate to `http://localhost:8000` to access the web interface.
+
+**Web Interface Features:**
+
+- Real-time bot status monitoring
+- Forward configuration management
+- Chat browser and selection
+- REST API for programmatic access
+- Remote control of forwarding operations
+
 ## Configuration
 
 ### Environment Variables
@@ -180,6 +228,30 @@ When forwarding historical messages, the bot displays real-time progress indicat
 - Current progress (X/Y messages)
 - Percentage completion
 
+### Web API
+
+The web interface provides a REST API for programmatic access:
+
+#### Status & Monitoring
+
+- `GET /api/status` - Get real-time bot status
+
+#### Chat Management
+
+- `GET /api/chats` - List available Telegram chats
+
+#### Forwarding Configuration
+
+- `GET /api/forwards` - List all forwarding configurations
+- `POST /api/forwards` - Create new forwarding configuration
+- `DELETE /api/forwards/{source_id}` - Delete forwarding configuration
+- `POST /api/forwards/{source_id}/toggle` - Enable/disable forwarding
+
+#### Control Operations
+
+- `POST /api/start-forwarding` - Start live message forwarding
+- `POST /api/stop-forwarding` - Stop live message forwarding
+
 ## Development
 
 ### Code Quality
@@ -240,6 +312,12 @@ telegram-forwarder-bot-v2/
 │       ├── Console.py
 │       ├── Constants.py
 │       └── RateLimiter.py
+├── web/
+│   ├── __init__.py
+│   ├── app.py
+│   ├── static/
+│   ├── templates/
+│   └── README.md
 ├── .env.example
 ├── .gitignore
 ├── .pre-commit-config.yaml
@@ -298,8 +376,10 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - [Telethon](https://github.com/LonamiWebs/Telethon) - Telegram client library
 - [Rich](https://github.com/Textualize/rich) - Beautiful terminal output
+- [FastAPI](https://github.com/tiangolo/fastapi) - Modern web framework
 - [Pydantic](https://github.com/pydantic/pydantic) - Data validation
 - [Loguru](https://github.com/Delgan/loguru) - Structured logging
+- [Uvicorn](https://github.com/encode/uvicorn) - ASGI server
 
 ## Support
 
