@@ -154,6 +154,12 @@ Choose one of the following installation methods:
    python web/app.py
    ```
 
+   Or run from the project root:
+
+   ```bash
+   python -m web.app
+   ```
+
 6. **Open your browser:**
 
    Navigate to `http://localhost:8000` to access the web interface.

@@ -1,8 +1,13 @@
 """FastAPI web interface for Telegram Forwarder Bot."""
 
 import os
+import sys
 from contextlib import asynccontextmanager
 from datetime import datetime
+
+# Add the parent directory to Python path so we can import from source
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from typing import Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException
