@@ -20,8 +20,20 @@ This directory contains the FastAPI web interface for the Telegram Forwarder Bot
 
 2. Run the web interface:
 
+   From the project root:
    ```bash
    python web/app.py
+   ```
+
+   Or from the web directory:
+   ```bash
+   cd web
+   python app.py
+   ```
+
+   Or using module syntax:
+   ```bash
+   python -m web.app
    ```
 
 3. Open your browser to `http://localhost:8000`

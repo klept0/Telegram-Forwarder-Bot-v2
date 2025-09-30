@@ -85,8 +85,17 @@ app = FastAPI(
 )
 
 # Mount static files and templates
-app.mount("/static", StaticFiles(directory="web/static"), name="static")
-templates = Jinja2Templates(directory="web/templates")
+# Use relative paths that work from both web/ directory and project root
+script_dir = os.path.dirname(os.path.abspath(__file__))
+static_dir = os.path.join(script_dir, "static")
+templates_dir = os.path.join(script_dir, "templates")
+
+# Ensure directories exist
+os.makedirs(static_dir, exist_ok=True)
+os.makedirs(templates_dir, exist_ok=True)
+
+app.mount("/static", StaticFiles(directory=static_dir), name="static")
+templates = Jinja2Templates(directory=templates_dir)
 
 
 @app.get("/", response_class=HTMLResponse)
