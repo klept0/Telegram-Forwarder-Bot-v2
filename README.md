@@ -2,9 +2,6 @@
 
 [![Python Version](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Code Style: Black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
-[![Imports: isort](https://img.shields.io/badge/%20imports-isort-%231674b1?style=flat&labelColor=ef8336)](https://pycqa.github.io/isort/)
-[![Linting: Ruff](https://img.shields.io/badge/linting-ruff-4b8bbe.svg)](https://github.com/charliermarsh/ruff)
 
 An asynchronous Telegram message forwarding bot with a modern Python architecture, built with Telethon and Rich.
 
@@ -22,9 +19,8 @@ This project is based on the [original Telegram Forwarder Bot](https://github.co
 - 🎨 **Rich Console UI**: Beautiful terminal interface with Rich
 - 🌐 **Web Dashboard**: FastAPI-based web interface for remote management
 - 🔒 **Secure**: Environment variable management for sensitive data
-- 📝 **Type-Safe**: Full type hints with mypy support
+- 📝 **Type-Safe**: Full type hints throughout the codebase
 - 🐳 **Docker Support**: Containerized deployment with Docker Compose
-- 🔧 **Modern Tooling**: Black, isort, ruff, mypy, and pre-commit hooks
 
 ## Quick Start
 
@@ -259,31 +255,6 @@ The web interface provides a REST API for programmatic access:
 - `POST /api/stop-forwarding` - Stop live message forwarding
 
 ## Development
-
-### Code Quality
-
-This project uses modern Python tooling for code quality:
-
-```bash
-# Format code
-black source/
-isort source/
-
-# Lint code
-ruff check source/
-
-# Type check
-mypy source/
-```
-
-### Pre-commit Hooks
-
-Install pre-commit hooks for automatic code quality checks:
-
-```bash
-pre-commit install
-pre-commit run --all-files
-```
 
 ### Project Structure
 
