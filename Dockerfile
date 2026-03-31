@@ -27,6 +27,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy source code
 COPY source/ ./source/
+COPY web/ ./web/
 COPY main.py ./
 
 # Create necessary directories

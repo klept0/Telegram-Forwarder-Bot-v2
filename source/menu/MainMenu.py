@@ -6,6 +6,7 @@ from source.core.Telegram import Telegram
 from source.dialog.DeleteDialog import DeleteDialog
 from source.dialog.FindUserDialog import FindUserDialog
 from source.dialog.ForwardDialog import ForwardDialog
+from source.dialog.KeywordForwardDialog import KeywordForwardDialog
 from source.menu.AccountSelector import AccountSelector
 from source.model.Credentials import Credentials
 from source.utils.Console import Terminal
@@ -19,33 +20,68 @@ class MainMenu:
         self.forward_dialog = ForwardDialog()
         self.delete_dialog = DeleteDialog()
         self.find_user_dialog = FindUserDialog()
+        self.keyword_forward_dialog = KeywordForwardDialog()
         self._status_task = None
         self.status = "Idle"
 
     def _init_menu_options(self):
         return [
-            {"name": "Add/Update Credentials", "value": "1", "handler": self.update_credentials},
+            {
+                "name": "Add/Update Credentials",
+                "value": "1",
+                "handler": self.update_credentials,
+            },
             {"name": "List Chats", "value": "2", "handler": self.list_chats},
-            {"name": "Delete My Messages", "value": "3", "handler": self.delete_messages},
+            {
+                "name": "Delete My Messages",
+                "value": "3",
+                "handler": self.delete_messages,
+            },
             {"name": "Find User Messages", "value": "4", "handler": self.find_user},
-            {"name": "Live Forward Messages", "value": "5", "handler": self.live_forward},
-            {"name": "Past Forward Messages", "value": "6", "handler": self.past_forward},
-            {"name": "Switch Account", "value": "7", "handler": self.switch_account},
-            {"name": "Exit", "value": "0", "handler": None}
+            {
+                "name": "Live Forward Messages",
+                "value": "5",
+                "handler": self.live_forward,
+            },
+            {
+                "name": "Past Forward Messages",
+                "value": "6",
+                "handler": self.past_forward,
+            },
+            {
+                "name": "Keyword Search + Forward",
+                "value": "7",
+                "handler": self.keyword_forward,
+            },
+            {"name": "Switch Account", "value": "8", "handler": self.switch_account},
+            {
+                "name": "Clear Forward Progress Cache",
+                "value": "9",
+                "handler": self.clear_forward_progress,
+            },
+            {"name": "Exit", "value": "0", "handler": None},
         ]
 
     async def _get_menu_choice(self):
         # Display queue status
         queue_status = self._get_queue_status()
-        self.console.print(f"[bold green]Status:[/] {self.status} | Queue: {queue_status['queue_length']} | Current: {queue_status['current_task']}\n")
-        choices = [{"name": opt["name"], "value": opt["value"]} for opt in self.menu_options]
+        self.console.print(
+            f"[bold green]Status:[/] {self.status} | Queue: {queue_status['queue_length']} | Current: {queue_status['current_task']}\n"
+        )
+        choices = [
+            {"name": opt["name"], "value": opt["value"]} for opt in self.menu_options
+        ]
         return await inquirer.select(message="Menu:", choices=choices).execute_async()
 
     def _get_queue_status(self):
         if hasattr(self.telegram, "queue") and self.telegram.queue:
             return {
                 "queue_length": self.telegram.queue.qsize(),
-                "current_task": str(self.telegram.queue.current_task) if self.telegram.queue.current_task else "None"
+                "current_task": (
+                    str(self.telegram.queue.current_task)
+                    if self.telegram.queue.current_task
+                    else "None"
+                ),
             }
         return {"queue_length": 0, "current_task": "None"}
 
@@ -55,7 +91,9 @@ class MainMenu:
             # Optionally, you could refresh status in console here
             # For simplicity, we just update internal status variable
             if hasattr(self.telegram, "queue") and self.telegram.queue:
-                self.status = "Processing" if self.telegram.queue.qsize() > 0 else "Idle"
+                self.status = (
+                    "Processing" if self.telegram.queue.qsize() > 0 else "Idle"
+                )
 
     async def start(self):
         try:
@@ -67,7 +105,11 @@ class MainMenu:
                     self.console.print("[bold red]Exiting...[/bold red]")
                     break
 
-                handler = next(opt["handler"] for opt in self.menu_options if opt["value"] == choice)
+                handler = next(
+                    opt["handler"]
+                    for opt in self.menu_options
+                    if opt["value"] == choice
+                )
                 if handler:
                     await handler()
                 else:
@@ -120,3 +162,32 @@ class MainMenu:
         await self._cleanup()
         selector = AccountSelector()
         self.telegram = await selector.select_account()
+
+    async def keyword_forward(self):
+        config = await self.keyword_forward_dialog.get_config()
+        if not config:
+            self.console.print("[bold yellow]Keyword forward cancelled.[/bold yellow]")
+            return
+
+        self.status = "Keyword forwarding..."
+        await self.telegram.forward_by_keyword(config)
+        self.status = "Idle"
+
+    async def clear_forward_progress(self):
+        confirmed = await inquirer.confirm(
+            message="Clear all saved forward progress state?",
+            default=False,
+        ).execute_async()
+        if not confirmed:
+            self.console.print("[bold yellow]Cancelled.[/bold yellow]")
+            return
+
+        removed = await self.telegram.clear_forward_progress()
+        if removed:
+            self.console.print(
+                "[bold green]Forward progress cache cleared.[/bold green]"
+            )
+        else:
+            self.console.print(
+                "[bold yellow]No progress cache file found.[/bold yellow]"
+            )

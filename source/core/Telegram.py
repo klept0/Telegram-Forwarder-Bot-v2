@@ -17,7 +17,7 @@ class Telegram:
         self.client = TelegramClient(
             SESSION_PREFIX_PATH + credentials.phone_number,
             credentials.api_id,
-            credentials.api_hash
+            credentials.api_hash,
         )
         self._is_connected = False
         self.console = Terminal.console
@@ -25,7 +25,9 @@ class Telegram:
         # Initialize services
         self.queue = MessageQueue()
         self.chat_service = ChatService(self.console)
-        self.message_service = MessageService(self.client, self.console, queue=self.queue)
+        self.message_service = MessageService(
+            self.client, self.console, queue=self.queue
+        )
 
         self.status = "Idle"
 
@@ -52,9 +54,12 @@ class Telegram:
         chats = await self.client.get_dialogs()
         chat_list = Chat.write(chats)
         self.console.print("\n[bold blue]Available Chats:[/]")
+        result = []
         for chat_dict in chat_list:
             chat = Chat(**chat_dict)
             self.console.print(chat.get_display_name())
+            result.append(chat)
+        return result
 
     async def delete(self, ignore_chats):
         me = await self.client.get_me()
@@ -74,7 +79,9 @@ class Telegram:
             try:
                 if chat.id == me.id or isinstance(chat, type(me)):
                     continue
-                await self.message_service.process_user_messages(chat, wanted_user, message_limit)
+                await self.message_service.process_user_messages(
+                    chat, wanted_user, message_limit
+                )
             except Exception as e:
                 self.console.print(f"[bold red]Error processing dialog:[/bold red] {e}")
 
@@ -87,6 +94,22 @@ class Telegram:
         forward = Forward(self.client, forward_config, self.queue)
         await forward.history_handler()
 
+    async def clear_forward_progress(self) -> bool:
+        forward = Forward(self.client, {}, self.queue)
+        return await forward.clear_progress()
+
+    async def forward_by_keyword(self, config):
+        return await self.message_service.forward_messages_by_keyword(
+            source_id=config["source_id"],
+            destination_id=config["destination_id"],
+            keyword=config["keyword"],
+            limit=config.get("limit"),
+            start_date=config.get("start_date"),
+            end_date=config.get("end_date"),
+            timezone_name=config.get("timezone_name", "UTC"),
+            dry_run=config.get("dry_run", False),
+        )
+
     async def download_media(self, message):
         os.makedirs(MEDIA_FOLDER_PATH, exist_ok=True)
         return await self.client.download_media(message, file=MEDIA_FOLDER_PATH)
@@ -94,5 +117,5 @@ class Telegram:
     def get_queue_status(self):
         return {
             "queue_length": self.queue.qsize(),
-            "active_task": getattr(self.queue, "current_task", "None")
+            "active_task": getattr(self.queue, "current_task", "None"),
         }

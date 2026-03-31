@@ -21,17 +21,20 @@ This directory contains the FastAPI web interface for the Telegram Forwarder Bot
 2. Run the web interface:
 
    From the project root:
+
    ```bash
    python web/app.py
    ```
 
    Or from the web directory:
+
    ```bash
    cd web
    python app.py
    ```
 
    Or using module syntax:
+
    ```bash
    python -m web.app
    ```
@@ -60,6 +63,10 @@ This directory contains the FastAPI web interface for the Telegram Forwarder Bot
 - `POST /api/start-forwarding` - Start live message forwarding
 - `POST /api/stop-forwarding` - Stop live message forwarding
 
+### Keyword Forwarding
+
+- `POST /api/keyword-forward` - Search by keyword and forward matching messages (supports date range, timezone, and dry-run)
+
 ## Development
 
 The web interface uses:
@@ -84,7 +91,13 @@ web/
 The web interface is included in the Docker setup. To run with Docker:
 
 ```bash
-docker-compose up web
+docker-compose up --build web
 ```
 
-This will start the web interface on port 8000 with the bot backend.
+To run both bot + web together:
+
+```bash
+docker-compose up --build telegram-forwarder web
+```
+
+This starts the web interface on port 8000 with shared project resources.

@@ -2,6 +2,10 @@
 
 [![Python Version](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Version](https://img.shields.io/badge/version-2.3.0-0A66C2.svg)](CHANGELOG.md)
+[![Docker](https://img.shields.io/badge/docker-supported-2496ED.svg?logo=docker&logoColor=white)](docker-compose.yml)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-009688.svg?logo=fastapi&logoColor=white)](web/app.py)
+[![Telethon](https://img.shields.io/badge/Telethon-1.39+-2CA5E0.svg)](https://github.com/LonamiWebs/Telethon)
 
 An asynchronous Telegram message forwarding bot with a modern Python architecture, built with Telethon and Rich.
 
@@ -13,7 +17,10 @@ This project is based on the [original Telegram Forwarder Bot](https://github.co
 - 🔄 **Live Forwarding**: Real-time message forwarding with event handlers
 - 📚 **History Forwarding**: Bulk message forwarding from chat history with date filtering
 - 📅 **Month Filtering**: Forward messages from specific months or date ranges
+- 🌍 **Timezone-Aware Date Filters**: Apply date windows in UTC, local, or custom IANA timezone
+- 🔎 **Dry-Run Preview**: Count matching historical messages before forwarding
 - 📊 **Progress Tracking**: Real-time progress indicators showing completion percentage
+- 🔍 **Keyword Search Forwarding**: Search source chat history by keyword and forward only matching messages
 - 👥 **Multi-Account Support**: Switch between multiple Telegram accounts
 - 🎯 **Rate Limiting**: Built-in rate limiting to respect Telegram's API limits
 - 🎨 **Rich Console UI**: Beautiful terminal interface with Rich
@@ -209,8 +216,10 @@ MESSAGE_QUEUE_DELAY=1.0
 4. **Find User Messages** - Search for messages from specific users
 5. **Live Forward Messages** - Start real-time message forwarding
 6. **Past Forward Messages** - Forward historical messages
-7. **Switch Account** - Change between configured accounts
-8. **Exit** - Close the application
+7. **Keyword Search + Forward** - Search by keyword and forward matching messages
+8. **Switch Account** - Change between configured accounts
+9. **Clear Forward Progress Cache** - Reset saved resume state for historical forwarding
+10. **Exit** - Close the application
 
 ### Forward Configuration
 
@@ -221,7 +230,10 @@ Configure message forwarding by specifying:
 - **Date Filtering**: Choose from:
   - No date filter (forward all messages)
   - Filter by specific month
+  - Filter by multiple months
   - Filter by custom date range
+- **Timezone**: Choose UTC, local system timezone, or custom IANA timezone
+- **Dry-Run Preview**: Optional count-only run without sending messages
 - **Enabled**: Whether forwarding is active
 
 When forwarding historical messages, the bot displays real-time progress indicators showing:
@@ -229,6 +241,25 @@ When forwarding historical messages, the bot displays real-time progress indicat
 - Number of messages found
 - Current progress (X/Y messages)
 - Percentage completion
+
+### Keyword Search + Forward
+
+Use the `Keyword Search + Forward` menu option to:
+
+- Select source and destination chats
+- Enter a keyword to search in source chat history
+- Optionally set date range + timezone filtering
+- Run dry-run preview (count matches only) or forward matches
+
+Matching messages are forwarded in chronological order.
+
+## Changelog Policy
+
+`CHANGELOG.md` is maintained as a running log for every update. Each release entry should include:
+
+- `Added`/`Changed`/`Fixed` details
+- Explicit behavior delta when relevant (before vs after)
+- Release date and semantic version
 
 ### Web API
 
@@ -253,6 +284,10 @@ The web interface provides a REST API for programmatic access:
 
 - `POST /api/start-forwarding` - Start live message forwarding
 - `POST /api/stop-forwarding` - Stop live message forwarding
+
+#### Keyword Forwarding
+
+- `POST /api/keyword-forward` - Search source chat by keyword and forward matches (supports dry-run)
 
 ## Development
 
@@ -366,4 +401,3 @@ For questions or issues:
 
 - Open an [issue](https://github.com/klept0/Telegram-Forwarder-Bot-v2/issues)
 - Check the [documentation](https://github.com/klept0/Telegram-Forwarder-Bot-v2/wiki)
-

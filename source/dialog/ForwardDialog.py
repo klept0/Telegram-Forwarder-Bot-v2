@@ -8,7 +8,7 @@ from source.utils.DateUtils import DateUtils
 class ForwardDialog(BaseDialog):
     async def get_config(self):
         """Get forward configuration from user.
-        
+
         Returns:
             Dict mapping source chat IDs to their forward configurations
         """
@@ -17,18 +17,16 @@ class ForwardDialog(BaseDialog):
 
     async def _get_forward_config(self):
         """Get forward configuration settings.
-        
+
         Returns:
             Dict mapping source chat IDs to their forward configurations
         """
         forward_config_list = await ForwardConfig.get_all(True)
-        config_string = '\n   '.join(
-            str(config) for config in forward_config_list
-        )
+        config_string = "\n   ".join(str(config) for config in forward_config_list)
 
         options = [
             {"name": "Use saved settings.\n   " + config_string, "value": "1"},
-            {"name": "New settings", "value": "2"}
+            {"name": "New settings", "value": "2"},
         ]
 
         choice = await self.show_options("Forward Settings:", options)
@@ -40,12 +38,14 @@ class ForwardDialog(BaseDialog):
             {"name": "No date filter (forward all messages)", "value": "none"},
             {"name": "Filter by specific month", "value": "month"},
             {"name": "Filter by multiple months", "value": "multi_month"},
-            {"name": "Filter by date range", "value": "range"}
+            {"name": "Filter by date range", "value": "range"},
         ]
 
         date_choice = await self.show_options("Date Filtering:", date_options)
 
         if date_choice != "none":
+            timezone_name = await self._get_timezone_selection()
+            dry_run = await self._get_dry_run_selection()
             for config in forward_config_list:
                 if date_choice == "month":
                     start_date, end_date = await self._get_month_selection()
@@ -58,6 +58,12 @@ class ForwardDialog(BaseDialog):
 
                 config.start_date = start_date
                 config.end_date = end_date
+                config.timezone_name = timezone_name
+                config.dry_run = dry_run
+        else:
+            for config in forward_config_list:
+                config.timezone_name = "UTC"
+                config.dry_run = False
 
         return {item.sourceID: item for item in forward_config_list}
 
@@ -71,18 +77,29 @@ class ForwardDialog(BaseDialog):
         current_year = DateUtils.get_current_month_range()[0].year
         years = [str(y) for y in range(current_year - 5, current_year + 2)]
         year_choice = await self.show_options(
-            "Select Year:",
-            [{"name": year, "value": year} for year in years]
+            "Select Year:", [{"name": year, "value": year} for year in years]
         )
 
         # Get month
         months = [
             {"name": f"{i:02d} - {m}", "value": str(i)}
-            for i, m in enumerate([
-                "January", "February", "March", "April", "May", "June",
-                "July", "August", "September", "October",
-                "November", "December"
-            ], 1)
+            for i, m in enumerate(
+                [
+                    "January",
+                    "February",
+                    "March",
+                    "April",
+                    "May",
+                    "June",
+                    "July",
+                    "August",
+                    "September",
+                    "October",
+                    "November",
+                    "December",
+                ],
+                1,
+            )
         ]
         month_choice = await self.show_options("Select Month:", months)
 
@@ -91,8 +108,7 @@ class ForwardDialog(BaseDialog):
             int(year_choice), int(month_choice)
         )
 
-        return (DateUtils.format_date(start_date),
-                DateUtils.format_date(end_date))
+        return (DateUtils.format_date(start_date), DateUtils.format_date(end_date))
 
     async def _get_multi_month_selection(self):
         """Get multiple month selection from user by selecting start and end months.
@@ -104,18 +120,29 @@ class ForwardDialog(BaseDialog):
         current_year = DateUtils.get_current_month_range()[0].year
         years = [str(y) for y in range(current_year - 5, current_year + 2)]
         year_choice = await self.show_options(
-            "Select Year:",
-            [{"name": year, "value": year} for year in years]
+            "Select Year:", [{"name": year, "value": year} for year in years]
         )
 
         # Get start month
         months = [
             {"name": f"{i:02d} - {m}", "value": str(i)}
-            for i, m in enumerate([
-                "January", "February", "March", "April", "May", "June",
-                "July", "August", "September", "October",
-                "November", "December"
-            ], 1)
+            for i, m in enumerate(
+                [
+                    "January",
+                    "February",
+                    "March",
+                    "April",
+                    "May",
+                    "June",
+                    "July",
+                    "August",
+                    "September",
+                    "October",
+                    "November",
+                    "December",
+                ],
+                1,
+            )
         ]
 
         start_month_choice = await self.show_options("Select Start Month:", months)
@@ -125,15 +152,16 @@ class ForwardDialog(BaseDialog):
         end_month = int(end_month_choice)
 
         if start_month > end_month:
-            self.console.print("[bold yellow]Start month is after end month, swapping them[/bold yellow]")
+            self.console.print(
+                "[bold yellow]Start month is after end month, swapping them[/bold yellow]"
+            )
             start_month, end_month = end_month, start_month
 
         # Get date range from start of first month to end of last month
         start_date, _ = DateUtils.get_month_date_range(int(year_choice), start_month)
         _, end_date = DateUtils.get_month_date_range(int(year_choice), end_month)
 
-        return (DateUtils.format_date(start_date),
-                DateUtils.format_date(end_date))
+        return (DateUtils.format_date(start_date), DateUtils.format_date(end_date))
 
     async def _get_date_range_selection(self):
         """Get custom date range from user.
@@ -142,16 +170,12 @@ class ForwardDialog(BaseDialog):
             Tuple of (start_date_str, end_date_str)
         """
         # Get start date
-        start_date_str = await self._get_date_input(
-            "Enter start date (YYYY-MM-DD):"
-        )
+        start_date_str = await self._get_date_input("Enter start date (YYYY-MM-DD):")
         if not start_date_str:
             return None, None
 
         # Get end date
-        end_date_str = await self._get_date_input(
-            "Enter end date (YYYY-MM-DD):"
-        )
+        end_date_str = await self._get_date_input("Enter end date (YYYY-MM-DD):")
         if not end_date_str:
             return None, None
 
@@ -176,7 +200,7 @@ class ForwardDialog(BaseDialog):
         """
         try:
             date_input = await inquirer.text(message=prompt).execute_async()
-            if DateUtils.parse_date(date_input):
+            if isinstance(date_input, str) and DateUtils.parse_date(date_input):
                 return date_input
             else:
                 self.console.print(
@@ -197,6 +221,56 @@ class ForwardDialog(BaseDialog):
             User input string or None if cancelled
         """
         try:
-            return await inquirer.text(message=prompt).execute_async()
+            text_value = await inquirer.text(message=prompt).execute_async()
+            return text_value if isinstance(text_value, str) else None
         except KeyboardInterrupt:
             return None
+
+    async def _get_timezone_selection(self) -> str:
+        """Get timezone selection from user.
+
+        Returns:
+            IANA timezone name (e.g. UTC, America/New_York)
+        """
+        timezone_choice = await self.show_options(
+            "Timezone for date boundaries:",
+            [
+                {"name": "UTC (recommended)", "value": "UTC"},
+                {"name": "System local timezone", "value": "LOCAL"},
+                {"name": "Custom IANA timezone", "value": "CUSTOM"},
+            ],
+        )
+
+        if timezone_choice == "UTC":
+            return "UTC"
+
+        if timezone_choice == "LOCAL":
+            return DateUtils.get_local_timezone_name()
+
+        timezone_input = await self._get_text_input(
+            "Enter timezone (example: America/New_York):"
+        )
+        if timezone_input and DateUtils.is_valid_timezone(timezone_input):
+            return timezone_input
+
+        self.console.print(
+            "[bold red]Error:[/bold red] Invalid timezone. Falling back to UTC."
+        )
+        return "UTC"
+
+    async def _get_dry_run_selection(self) -> bool:
+        """Ask whether to run in count-only preview mode."""
+        choice = await self.show_options(
+            "Run as dry-run preview?",
+            [
+                {
+                    "name": "No - forward matching messages",
+                    "value": "no",
+                },
+                {
+                    "name": "Yes - count matches only (no forwarding)",
+                    "value": "yes",
+                },
+            ],
+        )
+        return choice == "yes"

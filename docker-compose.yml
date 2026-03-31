@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   telegram-forwarder:
     build: .
@@ -25,6 +23,25 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+
+  web:
+    build: .
+    container_name: telegram-forwarder-web
+    restart: unless-stopped
+    command: ["python", "web/app.py"]
+    environment:
+      - TELEGRAM_API_ID=${TELEGRAM_API_ID}
+      - TELEGRAM_API_HASH=${TELEGRAM_API_HASH}
+      - TELEGRAM_PHONE=${TELEGRAM_PHONE}
+    volumes:
+      - ./resources:/app/resources
+      - ./sessions:/app/sessions
+    ports:
+      - "8000:8000"
+    networks:
+      - telegram-network
+    depends_on:
+      - telegram-forwarder
 
   # Optional: PostgreSQL for advanced data persistence
   postgres:

@@ -5,6 +5,7 @@ Provides utilities for date range calculations and month filtering.
 
 from calendar import monthrange
 from datetime import date, datetime
+from zoneinfo import ZoneInfo
 
 
 class DateUtils:
@@ -79,8 +80,7 @@ class DateUtils:
         return DateUtils.get_month_date_range(year, month)
 
     @staticmethod
-    def validate_date_range(start_date: str | None,
-                            end_date: str | None) -> bool:
+    def validate_date_range(start_date: str | None, end_date: str | None) -> bool:
         """Validate that start_date is before or equal to end_date.
 
         Args:
@@ -100,3 +100,27 @@ class DateUtils:
             return False
 
         return start <= end
+
+    @staticmethod
+    def is_valid_timezone(timezone_name: str) -> bool:
+        """Check whether an IANA timezone name is valid."""
+        try:
+            ZoneInfo(timezone_name)
+            return True
+        except Exception:
+            return False
+
+    @staticmethod
+    def get_local_timezone_name() -> str:
+        """Get local system timezone name, with UTC fallback."""
+        local_tz = datetime.now().astimezone().tzinfo
+        if hasattr(local_tz, "key") and local_tz.key:
+            return local_tz.key
+        return "UTC"
+
+    @staticmethod
+    def get_timezone(timezone_name: str | None) -> ZoneInfo:
+        """Resolve timezone name into ZoneInfo with UTC fallback."""
+        if timezone_name and DateUtils.is_valid_timezone(timezone_name):
+            return ZoneInfo(timezone_name)
+        return ZoneInfo("UTC")

@@ -4,6 +4,7 @@ from source.utils.Console import Terminal
 
 console = Terminal.console
 
+
 class MessageQueue:
     """Rate-limited async queue for Telegram messages."""
 
@@ -39,18 +40,36 @@ class MessageQueue:
 
     async def _worker(self):
         while self._running:
+            got_item = False
             try:
                 func, args = await self.queue.get()
-                self.current_task = args[1]  # store message object for status display
+                got_item = True
+                self.current_task = self._format_task_name(args)
                 await func(*args)
-                self.queue.task_done()
                 await asyncio.sleep(self.delay)  # rate limit
             except asyncio.CancelledError:
                 break
             except Exception as e:
                 console.print(f"[bold red]Queue Worker Error:[/bold red] {e}")
             finally:
+                if got_item:
+                    self.queue.task_done()
                 self.current_task = None
+
+    def _format_task_name(self, args):
+        """Build a compact human-readable task label for queue status output."""
+        if len(args) < 2:
+            return "unknown"
+
+        payload = args[1]
+        if isinstance(payload, list):
+            count = len(payload)
+            first_id = getattr(payload[0], "id", "?") if payload else "?"
+            return f"album(count={count}, first_id={first_id})"
+
+        message_id = getattr(payload, "id", "?")
+        chat_id = getattr(payload, "chat_id", "?")
+        return f"message(chat={chat_id}, id={message_id})"
 
     async def put(self, item):
         """Add a function with args to the queue.
