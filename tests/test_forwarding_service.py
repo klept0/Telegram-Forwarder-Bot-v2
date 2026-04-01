@@ -29,7 +29,6 @@ async def test_forward_message_uses_forward_messages():
     client.forward_messages.assert_awaited_once_with(
         -100222,
         message,
-        reply_to=55,
     )
 
 
@@ -44,7 +43,6 @@ async def test_forward_album_uses_forward_messages_and_not_send_messages():
     client.forward_messages.assert_awaited_once_with(
         -100222,
         messages,
-        reply_to=99,
     )
     called_methods = [call_item[0] for call_item in client.method_calls]
     assert "send_messages" not in called_methods

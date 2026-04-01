@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Resolved queue worker runtime error when forwarding messages on Telethon versions where `forward_messages` does not accept `reply_to`
+- Updated forwarding paths (history and keyword) to use `forward_messages` without unsupported kwargs for cross-version compatibility
+
 ## [2.3.0] - 2026-03-31
 
 ### Added in 2.3.0

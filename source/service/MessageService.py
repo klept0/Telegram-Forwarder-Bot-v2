@@ -80,7 +80,8 @@ class MessageService:
         return sent_count
 
     async def _forward_message(self, destination_id, message, reply_to=None):
-        await self.client.forward_messages(destination_id, message, reply_to=reply_to)
+        _ = reply_to
+        await self.client.forward_messages(destination_id, message)
 
     @staticmethod
     def _build_date_bounds(start_date, end_date, timezone_name):

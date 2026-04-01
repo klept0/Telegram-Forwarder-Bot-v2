@@ -20,11 +20,10 @@ class MessageForwardService:
         return await self._send_album(destination_id, messages, text, reply_to)
 
     async def _send_message(self, destination_id, message, reply_to=None):
-        return await self.client.forward_messages(
-            destination_id, message, reply_to=reply_to
-        )
+        # Telethon forward_messages does not support reply_to across versions.
+        _ = reply_to
+        return await self.client.forward_messages(destination_id, message)
 
     async def _send_album(self, destination_id, messages, _text=None, reply_to=None):
-        return await self.client.forward_messages(
-            destination_id, messages, reply_to=reply_to
-        )
+        _ = reply_to
+        return await self.client.forward_messages(destination_id, messages)
