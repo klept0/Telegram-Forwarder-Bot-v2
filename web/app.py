@@ -11,6 +11,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from typing import Dict, List, Optional
 
+from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -21,6 +22,12 @@ from starlette.requests import Request
 from source.core.Telegram import Telegram
 from source.model.Credentials import Credentials
 from source.model.ForwardConfig import ForwardConfig
+
+# Docker Compose substitutes .env into the container's real environment, but
+# a plain `python web/app.py` run never reads .env on its own. Load it here
+# so the .env file created via `cp .env.example .env` actually takes effect;
+# real environment variables (e.g. set by docker-compose) still win.
+load_dotenv()
 
 # The dashboard controls a real Telegram account (listing chats, forwarding
 # messages), so every API route requires a shared-secret API key. Refuse to
@@ -132,7 +139,7 @@ templates = Jinja2Templates(directory=templates_dir)
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     """Serve the main web interface."""
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse(request, "index.html")
 
 
 @app.get(
