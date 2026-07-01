@@ -82,7 +82,7 @@ reuses that session.
 
 ### Keyword Forwarding
 
-- `POST /api/keyword-forward` - Search by keyword and forward matching messages (supports date range, timezone, and dry-run)
+- `POST /api/keyword-forward` - Forward messages, optionally filtered by keyword (omit it to forward everything in range) — supports date range, timezone, dry-run, and (with a date range) resumes without re-forwarding what was already sent
 
 ## Development
 

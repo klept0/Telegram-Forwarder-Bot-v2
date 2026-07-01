@@ -20,7 +20,7 @@ This project is based on the [original Telegram Forwarder Bot](https://github.co
 - 🌍 **Timezone-Aware Date Filters**: Apply date windows in UTC, local, or custom IANA timezone
 - 🔎 **Dry-Run Preview**: Count matching historical messages before forwarding
 - 📊 **Progress Tracking**: Real-time progress indicators showing completion percentage
-- 🔍 **Keyword Search Forwarding**: Search source chat history by keyword and forward only matching messages
+- 🔍 **Keyword Search Forwarding**: Search source chat history by an optional keyword and forward matching (or all) messages, resumable over a date range
 - 👥 **Multi-Account Support**: Switch between multiple Telegram accounts
 - 🎯 **Rate Limiting**: Built-in rate limiting to respect Telegram's API limits
 - 🎨 **Rich Console UI**: Beautiful terminal interface with Rich
@@ -270,11 +270,17 @@ When forwarding historical messages, the bot displays real-time progress indicat
 Use the `Keyword Search + Forward` menu option to:
 
 - Select source and destination chats
-- Enter a keyword to search in source chat history
+- Optionally enter a keyword to search in source chat history — leave it
+  blank to forward every message in range instead of filtering by keyword
 - Optionally set date range + timezone filtering
 - Run dry-run preview (count matches only) or forward matches
 
-Matching messages are forwarded in chronological order.
+Matching messages are forwarded in chronological order. When a date range is
+selected, this is resumable: re-running the exact same source, date range,
+and keyword — whether the previous run finished or was interrupted — checks
+what's already been forwarded and only sends what hasn't been, instead of
+duplicating messages. Use `Clear Forward Progress Cache` to force a full
+re-scan of a range you've already run.
 
 ### Forward Media Files (Files/Images)
 
@@ -327,7 +333,7 @@ curl -H "X-API-Key: $API_KEY" http://localhost:8000/api/status
 
 #### Keyword Forwarding
 
-- `POST /api/keyword-forward` - Search source chat by keyword and forward matches (supports dry-run)
+- `POST /api/keyword-forward` - Forward messages in a source chat, optionally filtered by keyword (omit `keyword` to forward everything in range) — supports dry-run and, with a date range, resumes without re-forwarding what was already sent
 
 ## Development
 

@@ -11,9 +11,10 @@ class _IterMessagesClient:
         self._messages = messages
         self.forward_messages = AsyncMock()
 
-    async def iter_messages(self, source_id, search=None, limit=None):
+    async def iter_messages(self, source_id, search=None, limit=None, min_id=0):
         for message in self._messages:
-            yield message
+            if message.id > min_id:
+                yield message
 
 
 def _make_message(message_id, message_date):
@@ -24,7 +25,11 @@ def _make_message(message_id, message_date):
 
 
 @pytest.mark.asyncio
-async def test_keyword_forward_dry_run_does_not_send_messages():
+async def test_keyword_forward_dry_run_does_not_send_messages(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        "source.service.ForwardProgress.FORWARD_PROGRESS_FILE_PATH",
+        str(tmp_path / "forward_progress.json"),
+    )
     messages = [
         _make_message(5, datetime(2026, 3, 15, tzinfo=timezone.utc)),
         _make_message(4, datetime(2026, 3, 12, tzinfo=timezone.utc)),
@@ -44,12 +49,17 @@ async def test_keyword_forward_dry_run_does_not_send_messages():
         dry_run=True,
     )
 
-    assert sent_count == 0
+    # Dry-run reports how many messages still need forwarding, not zero.
+    assert sent_count == 2
     client.forward_messages.assert_not_awaited()
 
 
 @pytest.mark.asyncio
-async def test_keyword_forward_sends_only_in_date_range():
+async def test_keyword_forward_sends_only_in_date_range(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        "source.service.ForwardProgress.FORWARD_PROGRESS_FILE_PATH",
+        str(tmp_path / "forward_progress.json"),
+    )
     messages = [
         _make_message(10, datetime(2026, 4, 1, tzinfo=timezone.utc)),
         _make_message(9, datetime(2026, 3, 20, tzinfo=timezone.utc)),
@@ -76,3 +86,73 @@ async def test_keyword_forward_sends_only_in_date_range():
         call.args[1].id for call in client.forward_messages.await_args_list
     ]
     assert forwarded_ids == [8, 9]
+
+
+@pytest.mark.asyncio
+async def test_keyword_forward_keyword_is_optional(tmp_path, monkeypatch):
+    """Regression test: keyword must not be required — omitting it should
+    forward every message in range instead of raising."""
+    monkeypatch.setattr(
+        "source.service.ForwardProgress.FORWARD_PROGRESS_FILE_PATH",
+        str(tmp_path / "forward_progress.json"),
+    )
+    messages = [
+        _make_message(2, datetime(2026, 3, 10, tzinfo=timezone.utc)),
+        _make_message(1, datetime(2026, 3, 5, tzinfo=timezone.utc)),
+    ]
+    client = _IterMessagesClient(messages)
+    console = MagicMock()
+    service = MessageService(client, console)
+
+    sent_count = await service.forward_messages_by_keyword(
+        source_id=-100111,
+        destination_id=-100222,
+        start_date="2026-03-01",
+        end_date="2026-03-31",
+        timezone_name="UTC",
+        dry_run=False,
+    )
+
+    assert sent_count == 2
+    forwarded_ids = [
+        call.args[1].id for call in client.forward_messages.await_args_list
+    ]
+    assert forwarded_ids == [1, 2]
+
+
+@pytest.mark.asyncio
+async def test_keyword_forward_resumes_and_skips_already_forwarded(
+    tmp_path, monkeypatch
+):
+    """Re-running the exact same source/date-range/keyword combination must
+    skip messages already forwarded instead of sending duplicates."""
+    monkeypatch.setattr(
+        "source.service.ForwardProgress.FORWARD_PROGRESS_FILE_PATH",
+        str(tmp_path / "forward_progress.json"),
+    )
+    messages = [
+        _make_message(8, datetime(2026, 3, 5, tzinfo=timezone.utc)),
+        _make_message(9, datetime(2026, 3, 20, tzinfo=timezone.utc)),
+    ]
+    client = _IterMessagesClient(messages)
+    console = MagicMock()
+    service = MessageService(client, console)
+
+    kwargs = dict(
+        source_id=-100111,
+        destination_id=-100222,
+        keyword="guts",
+        start_date="2026-03-01",
+        end_date="2026-03-31",
+        timezone_name="UTC",
+        dry_run=False,
+    )
+
+    first_count = await service.forward_messages_by_keyword(**kwargs)
+    assert first_count == 2
+
+    client.forward_messages.reset_mock()
+    second_count = await service.forward_messages_by_keyword(**kwargs)
+
+    assert second_count == 0
+    client.forward_messages.assert_not_awaited()

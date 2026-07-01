@@ -16,6 +16,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Extracted the shared month/date-range/timezone/dry-run prompts out of `ForwardDialog` and `KeywordForwardDialog` into a new `source/dialog/DateRangeDialog.py` mixin, reused by the new `MediaForwardDialog` — removes ~150 lines of duplicated dialog code across the three forwarding flows.
 - Web dashboard now supports **dark mode**: a toggle button in the header switches between light/dark, defaults to the browser's `prefers-color-scheme`, and remembers the choice in `localStorage`. Colors were moved to CSS custom properties (`web/static/style.css`) so both themes share one set of component styles.
 - The "Forwarding Configurations" and "Available Chats" sections on the web dashboard are now collapsible (`<details>`/`<summary>`), so a long chat list no longer forces you to scroll past it to reach other controls.
+- `Keyword Search + Forward` is now resumable when a date range is selected: re-running the exact same source/date-range/keyword combination — whether the previous run finished or was interrupted — skips messages already forwarded and only sends what hasn't been sent yet, using the same `Clear Forward Progress Cache`-clearable progress tracking as `Past Forward Messages`/`Forward Media Files`. Extracted the persistence logic shared by all three into `source/service/ForwardProgress.py` rather than duplicating it a third time.
+- Dry-run preview for `Keyword Search + Forward` now reports how many messages **remain to forward** (accounting for what's already been sent when resuming), instead of always reporting `0`.
+
+### Changed
+
+- `keyword` is no longer a required field for `Keyword Search + Forward` (CLI dialog and `POST /api/keyword-forward`) — leaving it blank now forwards every message in the selected range instead of blocking with a "Keyword cannot be empty" validation error.
 
 ### Fixed
 

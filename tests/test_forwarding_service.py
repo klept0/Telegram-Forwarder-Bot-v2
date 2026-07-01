@@ -308,7 +308,7 @@ async def test_media_forward_dry_run_counts_only_files(monkeypatch, tmp_path):
     """Dry-run for a media-only forward must count files, not the plain text
     message mixed into the same range."""
     monkeypatch.setattr(
-        "source.service.Forward.FORWARD_PROGRESS_FILE_PATH",
+        "source.service.ForwardProgress.FORWARD_PROGRESS_FILE_PATH",
         str(tmp_path / "forward_progress.json"),
     )
 
@@ -351,7 +351,7 @@ async def test_media_forward_end_to_end_forwards_in_order_and_resumes(
     posting order), and a second run resumes from where the first left off
     instead of re-forwarding already-sent files."""
     monkeypatch.setattr(
-        "source.service.Forward.FORWARD_PROGRESS_FILE_PATH",
+        "source.service.ForwardProgress.FORWARD_PROGRESS_FILE_PATH",
         str(tmp_path / "forward_progress.json"),
     )
 
