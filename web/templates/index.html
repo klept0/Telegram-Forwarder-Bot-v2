@@ -5,10 +5,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Telegram Forwarder Bot</title>
     <link rel="stylesheet" href="/static/style.css">
+    <script>
+        // Applied before first paint (not in the deferred body script) to
+        // avoid a flash of the wrong theme on load.
+        (function () {
+            const stored = localStorage.getItem('tfb_theme');
+            const theme = stored || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+            document.documentElement.setAttribute('data-theme', theme);
+        })();
+    </script>
 </head>
 <body>
     <div class="container">
         <div class="header">
+            <button id="theme-toggle" class="btn theme-toggle" onclick="toggleTheme()" aria-label="Toggle dark mode">🌙</button>
             <h1>Telegram Forwarder Bot</h1>
             <p>Manage forwarding workflows from your browser</p>
         </div>
@@ -76,21 +86,25 @@
         </div>
 
         <div class="section">
-            <h2>Forwarding Configurations</h2>
-            <button class="btn" onclick="showAddForm()">Add New Forward</button>
-            <table class="table" id="forwards-table">
-                <thead>
-                    <tr>
-                        <th>Source</th>
-                        <th>Destination</th>
-                        <th>Status</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody id="forwards-body">
-                    <tr><td colspan="4">Loading...</td></tr>
-                </tbody>
-            </table>
+            <details class="collapsible" open>
+                <summary><h2>Forwarding Configurations</h2></summary>
+                <div class="collapsible-content">
+                    <button class="btn" onclick="showAddForm()">Add New Forward</button>
+                    <table class="table" id="forwards-table">
+                        <thead>
+                            <tr>
+                                <th>Source</th>
+                                <th>Destination</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="forwards-body">
+                            <tr><td colspan="4">Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </details>
         </div>
 
         <div class="section" id="add-form" style="display: none;">
@@ -118,29 +132,47 @@
         </div>
 
         <div class="section">
-            <h2>Available Chats</h2>
-            <button class="btn" onclick="loadChats()">Load Chats</button>
-            <table class="table" id="chats-table">
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Title</th>
-                        <th>Type</th>
-                        <th>Username</th>
-                    </tr>
-                </thead>
-                <tbody id="chats-body">
-                    <tr><td colspan="4">Click "Load Chats" to view available chats</td></tr>
-                </tbody>
-            </table>
+            <details class="collapsible">
+                <summary><h2>Available Chats</h2></summary>
+                <div class="collapsible-content">
+                    <button class="btn" onclick="loadChats()">Load Chats</button>
+                    <table class="table" id="chats-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Title</th>
+                                <th>Type</th>
+                                <th>Username</th>
+                            </tr>
+                        </thead>
+                        <tbody id="chats-body">
+                            <tr><td colspan="4">Click "Load Chats" to view available chats</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </details>
         </div>
     </div>
 
     <script>
         window.onload = function() {
+            syncThemeToggleIcon();
             refreshStatus();
             loadForwards();
         };
+
+        function syncThemeToggleIcon() {
+            const theme = document.documentElement.getAttribute('data-theme');
+            document.getElementById('theme-toggle').textContent = theme === 'dark' ? '☀️' : '🌙';
+        }
+
+        function toggleTheme() {
+            const current = document.documentElement.getAttribute('data-theme');
+            const next = current === 'dark' ? 'light' : 'dark';
+            localStorage.setItem('tfb_theme', next);
+            document.documentElement.setAttribute('data-theme', next);
+            syncThemeToggleIcon();
+        }
 
         function showAlert(message, type = 'success') {
             const alert = document.getElementById('alert');

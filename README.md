@@ -196,6 +196,8 @@ Choose one of the following installation methods:
 - Chat browser and selection
 - REST API for programmatic access
 - Remote control of forwarding operations
+- Dark mode (follows system preference, toggle in the header)
+- Collapsible sections for long lists (Forwarding Configurations, Available Chats)
 
 ## Configuration
 

@@ -205,7 +205,11 @@ async def get_chats():
 async def get_forwards():
     """Get forwarding configurations."""
     try:
-        forwards = ForwardConfig.read()
+        forwards = (
+            ForwardConfig.read()
+            if os.path.exists("resources/forwardConfig.json")
+            else []
+        )
         return [
             {
                 "source_id": f.sourceID,
