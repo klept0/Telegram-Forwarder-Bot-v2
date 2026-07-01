@@ -150,9 +150,31 @@
             setTimeout(() => alert.classList.add('hidden'), 5000);
         }
 
+        // Every /api/* route requires the X-API-Key header set on the server
+        // via the API_KEY environment variable. Ask for it once and remember
+        // it in this browser; re-prompt if the server rejects it.
+        function getApiKey() {
+            let key = localStorage.getItem('tfb_api_key');
+            if (!key) {
+                key = window.prompt('Enter the dashboard API key (set via the API_KEY environment variable on the server):') || '';
+                localStorage.setItem('tfb_api_key', key);
+            }
+            return key;
+        }
+
+        async function apiFetch(url, options = {}) {
+            const headers = Object.assign({}, options.headers, { 'X-API-Key': getApiKey() });
+            const response = await fetch(url, Object.assign({}, options, { headers }));
+            if (response.status === 401) {
+                localStorage.removeItem('tfb_api_key');
+                showAlert('Invalid API key. Reload the page and try again.', 'error');
+            }
+            return response;
+        }
+
         async function refreshStatus() {
             try {
-                const response = await fetch('/api/status');
+                const response = await apiFetch('/api/status');
                 const data = await response.json();
                 document.getElementById('bot-status').textContent = data.status;
                 document.getElementById('active-forwards').textContent = data.active_forwards;
@@ -178,7 +200,7 @@
             };
 
             try {
-                const response = await fetch('/api/keyword-forward', {
+                const response = await apiFetch('/api/keyword-forward', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
@@ -197,7 +219,7 @@
 
         async function loadForwards() {
             try {
-                const response = await fetch('/api/forwards');
+                const response = await apiFetch('/api/forwards');
                 const forwards = await response.json();
                 const tbody = document.getElementById('forwards-body');
 
@@ -224,7 +246,7 @@
 
         async function loadChats() {
             try {
-                const response = await fetch('/api/chats');
+                const response = await apiFetch('/api/chats');
                 const chats = await response.json();
                 const tbody = document.getElementById('chats-body');
 
@@ -243,7 +265,7 @@
 
         async function startForwarding() {
             try {
-                const response = await fetch('/api/start-forwarding', { method: 'POST' });
+                const response = await apiFetch('/api/start-forwarding', { method: 'POST' });
                 const result = await response.json();
                 showAlert(result.message);
                 refreshStatus();
@@ -254,7 +276,7 @@
 
         async function stopForwarding() {
             try {
-                const response = await fetch('/api/stop-forwarding', { method: 'POST' });
+                const response = await apiFetch('/api/stop-forwarding', { method: 'POST' });
                 const result = await response.json();
                 showAlert(result.message);
                 refreshStatus();
@@ -273,7 +295,7 @@
             };
 
             try {
-                const response = await fetch('/api/forwards', {
+                const response = await apiFetch('/api/forwards', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data)
@@ -290,7 +312,7 @@
 
         async function toggleForward(sourceId) {
             try {
-                const response = await fetch(`/api/forwards/${sourceId}/toggle`, { method: 'POST' });
+                const response = await apiFetch(`/api/forwards/${sourceId}/toggle`, { method: 'POST' });
                 const result = await response.json();
                 showAlert(result.message);
                 loadForwards();
@@ -305,7 +327,7 @@
             }
 
             try {
-                const response = await fetch(`/api/forwards/${sourceId}`, { method: 'DELETE' });
+                const response = await apiFetch(`/api/forwards/${sourceId}`, { method: 'DELETE' });
                 const result = await response.json();
                 showAlert(result.message);
                 loadForwards();

@@ -63,18 +63,16 @@ Choose one of the following installation methods:
    pip install -e ".[dev]"
    ```
 
-4. **Set up environment variables:**
-
-   ```bash
-   cp .env.example .env
-   # Edit .env with your Telegram API credentials
-   ```
-
-5. **Run the bot:**
+4. **Run the bot:**
 
    ```bash
    python main.py
    ```
+
+   You'll be prompted for your Telegram API credentials on first run; they're
+   saved to `resources/credentials.json` for reuse (no `.env` file needed for
+   the CLI — that's only required if you also run the web dashboard, see
+   [Configuration](#configuration)).
 
 #### Option 2: Docker Installation (Recommended for Production)
 
@@ -89,10 +87,24 @@ Choose one of the following installation methods:
 
    ```bash
    cp .env.example .env
-   # Edit .env with your Telegram API credentials
+   # Edit .env and set API_KEY (required by the web service, see Configuration below)
    ```
 
-3. **Run with Docker Compose:**
+3. **Authenticate once, interactively, before running detached:**
+
+   The `telegram-forwarder` container runs `python main.py`, which prompts
+   for your Telegram API credentials and login code on first use. Run it
+   attached the first time so you can answer the prompts:
+
+   ```bash
+   docker-compose run --rm telegram-forwarder
+   ```
+
+   This saves a session under `./sessions` and credentials under
+   `./resources`, which are mounted as volumes — subsequent runs (including
+   the `web` service) reuse that session without prompting again.
+
+4. **Run with Docker Compose:**
 
    ```bash
    docker-compose up --build
@@ -104,13 +116,13 @@ Choose one of the following installation methods:
    docker-compose up -d --build
    ```
 
-4. **View logs:**
+5. **View logs:**
 
    ```bash
    docker-compose logs -f telegram-forwarder
    ```
 
-5. **Stop the bot:**
+6. **Stop the bot:**
 
    ```bash
    docker-compose down
@@ -119,7 +131,7 @@ Choose one of the following installation methods:
 **Docker Notes:**
 
 - Configuration files are stored in Docker volumes for persistence
-- Environment variables are loaded from the `.env` file
+- The web service's `API_KEY` is loaded from the `.env` file; `docker-compose up` fails fast with a clear error if it isn't set
 - The bot runs as a non-root user for security
 
 #### Option 3: Web Interface (FastAPI Dashboard)
@@ -144,14 +156,22 @@ Choose one of the following installation methods:
    pip install -e ".[web]"
    ```
 
-4. **Set up environment variables:**
+4. **Authenticate an account first, via the CLI:**
+
+   The web dashboard never prompts for a Telegram login itself — it reuses
+   the session created by the CLI. Run `python main.py` once, answer the
+   credential/login prompts, then exit; this saves a session under
+   `./sessions` and credentials under `./resources`.
+
+5. **Set up environment variables:**
 
    ```bash
    cp .env.example .env
-   # Edit .env with your Telegram API credentials
+   # Edit .env and set API_KEY (the dashboard refuses to serve API
+   # requests without it — see Configuration below)
    ```
 
-5. **Run the web dashboard:**
+6. **Run the web dashboard:**
 
    ```bash
    python web/app.py
@@ -163,9 +183,11 @@ Choose one of the following installation methods:
    python -m web.app
    ```
 
-6. **Open your browser:**
+7. **Open your browser:**
 
-   Navigate to `http://localhost:8000` to access the web interface.
+   Navigate to `http://localhost:8000` to access the web interface. The
+   page will prompt you once for the `API_KEY` value and remember it in
+   the browser's local storage for subsequent requests.
 
 **Web Interface Features:**
 
@@ -251,17 +273,15 @@ Use the `Keyword Search + Forward` menu option to:
 
 Matching messages are forwarded in chronological order.
 
-## Changelog Policy
-
-`CHANGELOG.md` is maintained as a running log for every update. Each release entry should include:
-
-- `Added`/`Changed`/`Fixed` details
-- Explicit behavior delta when relevant (before vs after)
-- Release date and semantic version
-
 ### Web API
 
-The web interface provides a REST API for programmatic access:
+The web interface provides a REST API for programmatic access. Every
+`/api/*` route requires an `X-API-Key` header matching the server's
+`API_KEY` environment variable (see [Configuration](#configuration)):
+
+```bash
+curl -H "X-API-Key: $API_KEY" http://localhost:8000/api/status
+```
 
 #### Status & Monitoring
 
@@ -327,6 +347,11 @@ telegram-forwarder-bot-v2/
 │   ├── static/
 │   ├── templates/
 │   └── README.md
+├── docs/
+│   ├── conf.py
+│   ├── index.rst
+│   └── Makefile
+├── tests/
 ├── .env.example
 ├── .gitignore
 ├── .pre-commit-config.yaml
@@ -336,6 +361,26 @@ telegram-forwarder-bot-v2/
 ├── pyproject.toml
 ├── requirements.txt
 └── README.md
+```
+
+### Running Tests and Checks
+
+Install the dev tools, then run the same checks CI runs:
+
+```bash
+pip install -e ".[dev]"
+ruff check source/ tests/
+ruff format --check source/ tests/
+mypy source/
+pytest tests/ --cov=source
+```
+
+### Building Documentation
+
+```bash
+pip install -e ".[docs]"
+cd docs
+make html  # output in docs/_build/html/
 ```
 
 ## Architecture
@@ -370,10 +415,18 @@ telegram-forwarder-bot-v2/
 - Update documentation for API changes
 - Use conventional commit messages
 
+### Changelog Policy
+
+`CHANGELOG.md` is maintained as a running log for every update. Each release entry should include:
+
+- `Added`/`Changed`/`Fixed` details
+- Explicit behavior delta when relevant (before vs after)
+- Release date and semantic version
+
 ## Security
 
-- Never commit API credentials or sensitive data
-- Use environment variables for configuration
+- Never commit API credentials or sensitive data (`resources/credentials.json` and `sessions/` are gitignored)
+- The web dashboard requires an `API_KEY` and refuses to serve `/api/*` requests without one; it binds to `127.0.0.1` by default
 - Regularly update dependencies for security patches
 - Follow principle of least privilege
 
