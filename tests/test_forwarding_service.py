@@ -9,12 +9,20 @@ from source.service.MessageForwardService import MessageForwardService
 from source.service.MessageQueue import MessageQueue
 
 
-def _mock_message(message_id: int, message_date: datetime, chat_id: int = -100111):
+def _mock_message(
+    message_id: int,
+    message_date: datetime,
+    chat_id: int = -100111,
+    media=None,
+    text: str = "",
+):
     message = MagicMock()
     message.id = message_id
     message.date = message_date
     message.chat_id = chat_id
     message.is_reply = False
+    message.media = media
+    message.text = text
     return message
 
 
@@ -132,6 +140,50 @@ def test_progress_key_is_date_aware():
     assert key_a == "-100123|2026-03-01|2026-03-31"
 
 
+def test_progress_key_keeps_media_and_keyword_runs_separate():
+    """A media-only or keyword-filtered run over the same date range must not
+    collide with (or resume from) a plain full-history run's progress, but the
+    plain-run key format must stay unchanged for backward compatibility with
+    existing forward_progress.json files."""
+    forward = Forward.__new__(Forward)
+
+    plain_key = forward.progress_key(-100123, "2026-06-01", "2026-06-30")
+    media_key = forward.progress_key(
+        -100123, "2026-06-01", "2026-06-30", media_only=True
+    )
+    keyword_key = forward.progress_key(
+        -100123, "2026-06-01", "2026-06-30", keyword="invoice"
+    )
+
+    assert plain_key == "-100123|2026-06-01|2026-06-30"
+    assert media_key == "-100123|2026-06-01|2026-06-30|media"
+    assert keyword_key == "-100123|2026-06-01|2026-06-30|kw:invoice"
+    assert len({plain_key, media_key, keyword_key}) == 3
+
+
+def test_matches_criteria_filters_by_media_presence():
+    forward = Forward.__new__(Forward)
+    dt = datetime(2026, 3, 15, 12, 0, 0, tzinfo=timezone.utc)
+
+    file_message = MagicMock(date=dt, media=MagicMock(), text="a photo")
+    text_message = MagicMock(date=dt, media=None, text="just words")
+
+    assert forward.matches_criteria(file_message, None, None, media_only=True) is True
+    assert forward.matches_criteria(text_message, None, None, media_only=True) is False
+    assert forward.matches_criteria(text_message, None, None, media_only=False) is True
+
+
+def test_matches_criteria_filters_by_keyword():
+    forward = Forward.__new__(Forward)
+    dt = datetime(2026, 3, 15, 12, 0, 0, tzinfo=timezone.utc)
+
+    matching = MagicMock(date=dt, media=None, text="please forward the Invoice")
+    other = MagicMock(date=dt, media=None, text="unrelated message")
+
+    assert forward.matches_criteria(matching, None, None, keyword="invoice") is True
+    assert forward.matches_criteria(other, None, None, keyword="invoice") is False
+
+
 def test_in_date_range_respects_start_and_end_bounds():
     forward = Forward.__new__(Forward)
     start = datetime(2026, 3, 1, 0, 0, 0, tzinfo=timezone.utc)
@@ -156,7 +208,12 @@ def test_build_date_bounds_for_single_day():
 
 
 @pytest.mark.asyncio
-async def test_forward_chat_history_pages_until_in_range_messages(monkeypatch):
+async def test_forward_chat_history_forwards_in_ascending_order_and_stops_at_end(
+    monkeypatch,
+):
+    """Regression test: messages must be forwarded oldest-first (the order
+    they were originally posted), and the scan must stop once it reaches
+    messages past the configured end date rather than continuing to page."""
     client = AsyncMock()
     queue = MagicMock()
     config = MagicMock(
@@ -170,24 +227,22 @@ async def test_forward_chat_history_pages_until_in_range_messages(monkeypatch):
 
     monkeypatch.setattr("source.service.Forward.DEFAULT_CHUNK_SIZE", 2)
 
-    april = [
-        _mock_message(200, datetime(2026, 4, 5, 12, 0, tzinfo=timezone.utc)),
-        _mock_message(199, datetime(2026, 4, 4, 12, 0, tzinfo=timezone.utc)),
-    ]
-    march = [
-        _mock_message(150, datetime(2026, 3, 20, 12, 0, tzinfo=timezone.utc)),
+    march_ascending = [
         _mock_message(149, datetime(2026, 3, 10, 12, 0, tzinfo=timezone.utc)),
+        _mock_message(150, datetime(2026, 3, 20, 12, 0, tzinfo=timezone.utc)),
     ]
-    feb = [_mock_message(120, datetime(2026, 2, 10, 12, 0, tzinfo=timezone.utc))]
+    april_ascending = [
+        _mock_message(199, datetime(2026, 4, 4, 12, 0, tzinfo=timezone.utc)),
+        _mock_message(200, datetime(2026, 4, 5, 12, 0, tzinfo=timezone.utc)),
+    ]
 
     async def fake_get_messages(_source, **kwargs):
-        offset_id = kwargs.get("offset_id", 0)
-        if offset_id == 0:
-            return april
-        if offset_id == 199:
-            return march
-        if offset_id == 149:
-            return feb
+        assert kwargs.get("reverse") is True
+        if kwargs.get("offset_date") is not None:
+            # First fetch: no resume cursor yet, jump straight to start_date.
+            return march_ascending
+        if kwargs.get("min_id") == 150:
+            return april_ascending
         return []
 
     client.get_messages = AsyncMock(side_effect=fake_get_messages)
@@ -246,3 +301,119 @@ async def test_forward_chat_history_dry_run_does_not_forward():
     forward.count_messages_in_range.assert_awaited_once()
     forward._forward_message.assert_not_awaited()
     forward._save_progress.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_media_forward_dry_run_counts_only_files(monkeypatch, tmp_path):
+    """Dry-run for a media-only forward must count files, not the plain text
+    message mixed into the same range."""
+    monkeypatch.setattr(
+        "source.service.Forward.FORWARD_PROGRESS_FILE_PATH",
+        str(tmp_path / "forward_progress.json"),
+    )
+
+    june_messages = [
+        _mock_message(
+            101, datetime(2026, 6, 2, 9, 0, tzinfo=timezone.utc), media=MagicMock()
+        ),
+        _mock_message(
+            102, datetime(2026, 6, 10, 9, 0, tzinfo=timezone.utc), media=None
+        ),
+        _mock_message(
+            103, datetime(2026, 6, 20, 9, 0, tzinfo=timezone.utc), media=MagicMock()
+        ),
+    ]
+
+    client = AsyncMock()
+
+    async def fake_get_messages(_source, **kwargs):
+        if kwargs.get("offset_date") is not None:
+            return june_messages
+        return []
+
+    client.get_messages = AsyncMock(side_effect=fake_get_messages)
+
+    forward = Forward(client, {-100111: MagicMock()}, MagicMock())
+    start_dt, end_dt = forward.build_date_bounds("2026-06-01", "2026-06-30")
+
+    count = await forward.count_messages_in_range(
+        -100111, 0, start_dt, end_dt, media_only=True
+    )
+
+    assert count == 2
+
+
+@pytest.mark.asyncio
+async def test_media_forward_end_to_end_forwards_in_order_and_resumes(
+    monkeypatch, tmp_path
+):
+    """Exercises the full media-forward feature: only files are forwarded (in
+    posting order), and a second run resumes from where the first left off
+    instead of re-forwarding already-sent files."""
+    monkeypatch.setattr(
+        "source.service.Forward.FORWARD_PROGRESS_FILE_PATH",
+        str(tmp_path / "forward_progress.json"),
+    )
+
+    # June 2026 chat history: two files and one plain text message, oldest first.
+    june_messages = [
+        _mock_message(
+            101, datetime(2026, 6, 2, 9, 0, tzinfo=timezone.utc), media=MagicMock()
+        ),
+        _mock_message(
+            102, datetime(2026, 6, 10, 9, 0, tzinfo=timezone.utc), media=None
+        ),
+        _mock_message(
+            103, datetime(2026, 6, 20, 9, 0, tzinfo=timezone.utc), media=MagicMock()
+        ),
+    ]
+
+    client = AsyncMock()
+
+    async def fake_get_messages(_source, **kwargs):
+        if kwargs.get("offset_date") is not None or kwargs.get("min_id", 0) == 0:
+            return june_messages
+        return []  # nothing newer than the last message we've already seen
+
+    client.get_messages = AsyncMock(side_effect=fake_get_messages)
+    client.forward_messages = AsyncMock(
+        side_effect=lambda _dest, msg: MagicMock(id=msg.id * 10, chat_id=-100222)
+    )
+
+    async def idle_status_task():
+        while True:
+            await asyncio.sleep(60)
+
+    config = MagicMock(
+        destinationID=-100222,
+        start_date="2026-06-01",
+        end_date="2026-06-30",
+        timezone_name="UTC",
+        dry_run=False,
+        media_only=True,
+        keyword=None,
+    )
+
+    queue = MessageQueue(delay=0)
+    forward = Forward(client, {-100111: config}, queue)
+    forward._periodic_status_update = idle_status_task
+    forward._get_total_message_count = AsyncMock(return_value=2)
+    await forward.history_handler()
+    await asyncio.wait_for(queue.queue.join(), timeout=1)
+    await queue.stop()
+
+    forwarded_ids = [
+        call.args[1].id for call in client.forward_messages.await_args_list
+    ]
+    assert forwarded_ids == [101, 103]  # files only, oldest first, no text message
+
+    # --- Re-running the same range must not re-forward already-sent files ---
+    client.forward_messages.reset_mock()
+    queue_again = MessageQueue(delay=0)
+    forward_again = Forward(client, {-100111: config}, queue_again)
+    forward_again._periodic_status_update = idle_status_task
+    forward_again._get_total_message_count = AsyncMock(return_value=2)
+    await forward_again.history_handler()
+    await queue_again.stop()
+
+    client.forward_messages.assert_not_awaited()

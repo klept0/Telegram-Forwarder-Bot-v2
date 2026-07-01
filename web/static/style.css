@@ -1,27 +1,99 @@
 /* Basic styles for Telegram Forwarder Bot Web Interface */
 
+:root {
+    --bg: #f5f5f5;
+    --surface: #ffffff;
+    --text: #333333;
+    --text-muted: #64758a;
+    --border: #dee2e6;
+    --header-border: #ececec;
+    --label: #55616d;
+    --status-bg: #f8f9fa;
+    --status-heading: #495057;
+    --shadow: rgba(0, 0, 0, 0.1);
+    --heading: #2c3e50;
+    --table-header-bg: #f8f9fa;
+    --input-border: #cccccc;
+    --btn-primary: #007bff;
+    --btn-primary-hover: #0056b3;
+    --btn-danger: #dc3545;
+    --btn-danger-hover: #c82333;
+    --btn-success: #28a745;
+    --btn-success-hover: #218838;
+    --alert-success-text: #155724;
+    --alert-success-bg: #d4edda;
+    --alert-success-border: #c3e6cb;
+    --alert-error-text: #721c24;
+    --alert-error-bg: #f8d7da;
+    --alert-error-border: #f5c6cb;
+    --spinner-track: #f3f3f3;
+    --spinner-active: #3498db;
+}
+
+[data-theme="dark"] {
+    --bg: #12161c;
+    --surface: #1b212b;
+    --text: #e4e7eb;
+    --text-muted: #9aa5b1;
+    --border: #2c3542;
+    --header-border: #2c3542;
+    --label: #9aa5b1;
+    --status-bg: #232a35;
+    --status-heading: #cbd3dc;
+    --shadow: rgba(0, 0, 0, 0.5);
+    --heading: #e4e7eb;
+    --table-header-bg: #232a35;
+    --input-border: #3a4453;
+    --btn-primary: #3b82f6;
+    --btn-primary-hover: #2563eb;
+    --btn-danger: #ef4444;
+    --btn-danger-hover: #dc2626;
+    --btn-success: #22c55e;
+    --btn-success-hover: #16a34a;
+    --alert-success-text: #86efac;
+    --alert-success-bg: #14321f;
+    --alert-success-border: #1f7a3f;
+    --alert-error-text: #fca5a5;
+    --alert-error-bg: #3a1518;
+    --alert-error-border: #7f1d1d;
+    --spinner-track: #2c3542;
+    --spinner-active: #60a5fa;
+}
+
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     margin: 0;
     padding: 20px;
-    background-color: #f5f5f5;
-    color: #333;
+    background-color: var(--bg);
+    color: var(--text);
+    transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 .container {
     max-width: 1200px;
     margin: 0 auto;
-    background: white;
+    background: var(--surface);
     border-radius: 8px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    box-shadow: 0 2px 10px var(--shadow);
     padding: 20px;
 }
 
 .header {
+    position: relative;
     text-align: center;
     margin-bottom: 24px;
-    border-bottom: 1px solid #ececec;
+    border-bottom: 1px solid var(--header-border);
     padding-bottom: 16px;
+}
+
+.theme-toggle {
+    position: absolute;
+    top: 0;
+    right: 0;
+    margin: 0;
+    padding: 8px 12px;
+    font-size: 1.1rem;
+    line-height: 1;
 }
 
 .status-item {
@@ -32,7 +104,7 @@ body {
 
 .status-label {
     font-weight: 600;
-    color: #55616d;
+    color: var(--label);
 }
 
 .status-value {
@@ -63,20 +135,20 @@ body {
 }
 
 .muted {
-    color: #64758a;
+    color: var(--text-muted);
     font-size: 0.95rem;
     margin-top: 8px;
 }
 
 h1 {
-    color: #2c3e50;
+    color: var(--heading);
     text-align: center;
     margin-bottom: 30px;
 }
 
 .status-card {
-    background: #f8f9fa;
-    border: 1px solid #dee2e6;
+    background: var(--status-bg);
+    border: 1px solid var(--border);
     border-radius: 5px;
     padding: 15px;
     margin: 10px 0;
@@ -84,11 +156,11 @@ h1 {
 
 .status-card h3 {
     margin-top: 0;
-    color: #495057;
+    color: var(--status-heading);
 }
 
 .btn {
-    background-color: #007bff;
+    background-color: var(--btn-primary);
     color: white;
     border: none;
     padding: 10px 20px;
@@ -100,23 +172,23 @@ h1 {
 }
 
 .btn:hover {
-    background-color: #0056b3;
+    background-color: var(--btn-primary-hover);
 }
 
 .btn-danger {
-    background-color: #dc3545;
+    background-color: var(--btn-danger);
 }
 
 .btn-danger:hover {
-    background-color: #c82333;
+    background-color: var(--btn-danger-hover);
 }
 
 .btn-success {
-    background-color: #28a745;
+    background-color: var(--btn-success);
 }
 
 .btn-success:hover {
-    background-color: #218838;
+    background-color: var(--btn-success-hover);
 }
 
 .table {
@@ -126,13 +198,13 @@ h1 {
 }
 
 .table th, .table td {
-    border: 1px solid #dee2e6;
+    border: 1px solid var(--border);
     padding: 8px 12px;
     text-align: left;
 }
 
 .table th {
-    background-color: #f8f9fa;
+    background-color: var(--table-header-bg);
     font-weight: bold;
 }
 
@@ -149,9 +221,11 @@ h1 {
 .form-group input, .form-group select {
     width: 100%;
     padding: 8px;
-    border: 1px solid #ccc;
+    border: 1px solid var(--input-border);
     border-radius: 4px;
     box-sizing: border-box;
+    background-color: var(--surface);
+    color: var(--text);
 }
 
 .alert {
@@ -162,23 +236,23 @@ h1 {
 }
 
 .alert-success {
-    color: #155724;
-    background-color: #d4edda;
-    border-color: #c3e6cb;
+    color: var(--alert-success-text);
+    background-color: var(--alert-success-bg);
+    border-color: var(--alert-success-border);
 }
 
 .alert-error {
-    color: #721c24;
-    background-color: #f8d7da;
-    border-color: #f5c6cb;
+    color: var(--alert-error-text);
+    background-color: var(--alert-error-bg);
+    border-color: var(--alert-error-border);
 }
 
 .loading {
     display: inline-block;
     width: 20px;
     height: 20px;
-    border: 3px solid #f3f3f3;
-    border-top: 3px solid #3498db;
+    border: 3px solid var(--spinner-track);
+    border-top: 3px solid var(--spinner-active);
     border-radius: 50%;
     animation: spin 1s linear infinite;
 }
@@ -189,5 +263,45 @@ h1 {
 }
 
 .hidden {
+    display: none;
+}
+
+/* Collapsible long sections (e.g. Available Chats, Forwarding Configurations) */
+.collapsible summary {
+    cursor: pointer;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.collapsible summary::-webkit-details-marker {
+    display: none;
+}
+
+.collapsible summary::before {
+    content: "\25B6";
+    display: inline-block;
+    font-size: 0.7em;
+    transition: transform 0.15s ease;
+}
+
+.collapsible[open] summary::before {
+    transform: rotate(90deg);
+}
+
+.collapsible summary h2 {
+    display: inline-block;
+    margin: 0;
+}
+
+.collapsible-content {
+    margin-top: 12px;
+}
+
+/* Explicit visibility control: don't rely solely on the browser's native
+   details/summary disclosure behavior, which some embedded/headless
+   renderers implement inconsistently. */
+.collapsible:not([open]) .collapsible-content {
     display: none;
 }

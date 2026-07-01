@@ -1,11 +1,11 @@
 from InquirerPy import inquirer
 
-from source.dialog.BaseDialog import BaseDialog
+from source.dialog.DateRangeDialog import DateRangeDialog
 from source.model.Chat import Chat
 from source.utils.DateUtils import DateUtils
 
 
-class KeywordForwardDialog(BaseDialog):
+class KeywordForwardDialog(DateRangeDialog):
     async def get_config(self):
         """Get keyword-forward settings from user input."""
         self.clear()
@@ -78,40 +78,3 @@ class KeywordForwardDialog(BaseDialog):
             "timezone_name": timezone_name,
             "dry_run": dry_run,
         }
-
-    async def _get_date_input(self, prompt: str):
-        value = await inquirer.text(message=prompt).execute_async()
-        if isinstance(value, str) and DateUtils.parse_date(value):
-            return value
-        self.console.print(
-            "[bold red]Error:[/bold red] Invalid date format. Use YYYY-MM-DD."
-        )
-        return await self._get_date_input(prompt)
-
-    async def _get_timezone_selection(self) -> str:
-        timezone_choice = await self.show_options(
-            "Timezone for date boundaries:",
-            [
-                {"name": "UTC (recommended)", "value": "UTC"},
-                {"name": "System local timezone", "value": "LOCAL"},
-                {"name": "Custom IANA timezone", "value": "CUSTOM"},
-            ],
-        )
-
-        if timezone_choice == "UTC":
-            return "UTC"
-        if timezone_choice == "LOCAL":
-            return DateUtils.get_local_timezone_name()
-
-        timezone_input = await inquirer.text(
-            message="Enter timezone (example: America/New_York):"
-        ).execute_async()
-        if isinstance(timezone_input, str) and DateUtils.is_valid_timezone(
-            timezone_input
-        ):
-            return timezone_input
-
-        self.console.print(
-            "[bold red]Error:[/bold red] Invalid timezone. Falling back to UTC."
-        )
-        return "UTC"

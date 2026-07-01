@@ -196,6 +196,8 @@ Choose one of the following installation methods:
 - Chat browser and selection
 - REST API for programmatic access
 - Remote control of forwarding operations
+- Dark mode (follows system preference, toggle in the header)
+- Collapsible sections for long lists (Forwarding Configurations, Available Chats)
 
 ## Configuration
 
@@ -237,9 +239,10 @@ WEB_PORT=8000
 5. **Live Forward Messages** - Start real-time message forwarding
 6. **Past Forward Messages** - Forward historical messages
 7. **Keyword Search + Forward** - Search by keyword and forward matching messages
-8. **Switch Account** - Change between configured accounts
-9. **Clear Forward Progress Cache** - Reset saved resume state for historical forwarding
-10. **Exit** - Close the application
+8. **Forward Media Files (Files/Images)** - Forward all files/images (optionally keyword-filtered) from a date range, in the order they were posted
+9. **Switch Account** - Change between configured accounts
+10. **Clear Forward Progress Cache** - Reset saved resume state for historical forwarding
+11. **Exit** - Close the application
 
 ### Forward Configuration
 
@@ -272,6 +275,25 @@ Use the `Keyword Search + Forward` menu option to:
 - Run dry-run preview (count matches only) or forward matches
 
 Matching messages are forwarded in chronological order.
+
+### Forward Media Files (Files/Images)
+
+Use the `Forward Media Files` menu option to forward only messages that
+carry a file, photo, or video from a source chat's history — in the order
+they were originally posted:
+
+- Select source and destination chats
+- Optionally filter to files whose caption/text matches a keyword
+- Pick a date range (no filter, a specific month, multiple months, or a
+  custom range — e.g. "all of June")
+- Timezone selection and dry-run preview, same as the other forward flows
+
+Dry-run preview reports the **total number of matching files**, not an
+estimate. Real runs are resumable: if you re-run the exact same source,
+date range, and keyword/media combination — whether the previous run
+finished or was interrupted — it picks up right after the last file it
+already forwarded instead of sending duplicates. To force a full re-scan
+of a range you've already run, use `Clear Forward Progress Cache` first.
 
 ### Web API
 
