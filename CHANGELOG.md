@@ -11,8 +11,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **CI was completely non-functional.** `pyproject.toml` had no `dev` or `docs` extras, so `pip install -e ".[dev]"` silently installed none of `ruff`/`mypy`/`pytest-asyncio`/`pytest-cov`, and every job in the `test` matrix failed at the linting step with `ruff: command not found`. Added `dev` and `docs` extras with the tools each CI step actually needs.
+- `.github/workflows/ci.yml`'s `security` and `docs` jobs failed immediately (before running any of their steps) because `actions/upload-artifact@v3` is a hard-blocked deprecated action. Bumped to `v4`, along with `actions/setup-python@v4→v5`, `actions/cache@v3→v4`, and `codecov/codecov-action@v3→v4` in the same file to clear the accompanying deprecation warnings.
+- The `docs` job's `cd docs && make html` had no `docs/` directory to build — added a minimal Sphinx scaffold (`docs/conf.py`, `docs/index.rst`, `docs/Makefile`) so the job builds real output instead of failing on a missing path.
+- `mypy source/` (run with no config) failed with 16 pre-existing type errors across `DateUtils.py`, `Chat.py`, `KeywordForwardDialog.py`, and `ForwardDialog.py` — untyped-import noise from `telethon`, implicit-`Optional` parameter defaults, a `tzinfo | None` attribute access, a return-type mismatch on `Chat.scan_wanted_user`, and false positives from InquirerPy's `execute_async()` stubs being (incorrectly) typed as returning `None`. Fixed the real type issues and added `[tool.mypy]` config (`ignore_missing_imports`, and `follow_imports = "skip"` for `InquirerPy.*`) so the check reflects actual bugs instead of stub noise.
+- `ruff format --check source/ tests/` (enforced by CI) failed on 13 files that had never been run through `ruff format` (only `black`, via pre-commit, had touched them, and the two formatters disagree on some edge cases). Reformatted the whole tree so the CI check and the pre-commit hook agree.
+
+- **History/reply mapping was broken for every queued forward.** `MessageForwardService.forward_message`/`forward_album` returned the *source* message immediately when queuing a send (since the real send happens later, asynchronously), and `Forward._forward_message`/`_forward_album` used that placeholder to record history mappings — meaning `(source_chat, source_id) -> (source_chat, source_id)` was stored instead of `(source_chat, source_id) -> (dest_chat, dest_id)`. Since `Telegram` always constructs a real queue, this hit every forward, silently breaking reply-threading. Fixed by passing an `on_sent` callback into the queue job that fires with the real destination message once it's actually sent, and updating history from that callback instead of the return value. Added regression tests covering the queued path.
+- `requirements.txt` was missing `fastapi`, `uvicorn`, `jinja2`, `pydantic`, `python-dotenv`, `loguru`, and `aiofiles` (present in `pyproject.toml` but not `requirements.txt`), so `pip install -r requirements.txt` could not run `web/app.py`. Also dropped the obsolete `typing` PyPI backport, which can break stdlib `typing` on Python 3.10+.
+- `web/app.py`'s startup handler checked for `TELEGRAM_API_ID`/`TELEGRAM_API_HASH`/`TELEGRAM_PHONE` env vars that the app never reads or sets (credentials come from `resources/credentials.json`) and then did nothing (`pass`), so `telegram_client` was never initialized and every `/api/*` route reported "not initialized". It now reuses the session created by the CLI (`python main.py`) via `Credentials.get_all()` + `Telegram.create()`.
+- `source/model/Credentials.py` hardcoded `resources/credentials.json` separately from `Constants.CREDENTIALS_FILE_PATH`; now reuses the constant so the two can't diverge. The credentials file is also now written with `0600` permissions since it contains a plaintext `api_hash`.
 - Resolved queue worker runtime error when forwarding messages on Telethon versions where `forward_messages` does not accept `reply_to`
 - Updated forwarding paths (history and keyword) to use `forward_messages` without unsupported kwargs for cross-version compatibility
+
+### Security
+
+- All `/api/*` routes in `web/app.py` now require an `X-API-Key` header matching the `API_KEY` environment variable; the server refuses to serve API requests if `API_KEY` isn't set, rather than defaulting to an open API. Previously any network client that could reach the port could list chats, create/delete forward configs, and trigger keyword-forward against the user's real Telegram account.
+- The web dashboard now binds to `127.0.0.1` by default instead of `0.0.0.0` (override with `WEB_HOST`/`WEB_PORT`). `docker-compose.yml`'s `web` service now publishes port 8000 on `127.0.0.1` only and requires `API_KEY` to be set (`docker compose up` fails fast with a clear error if it isn't).
+
+### Removed
+
+- Removed `source/utils/RateLimiter.py` (`RateLimitedQueue`) — dead code with zero references anywhere in the codebase; rate limiting is already handled by `MessageQueue`.
+- Removed the `postgres`, `redis`, and `prometheus` services from `docker-compose.yml`. None of them were used by any application code, and the `postgres`/`prometheus` services referenced `./docker/postgres/init.sql` and `./docker/prometheus.yml`, which don't exist in the repo — enabling either profile would fail immediately.
+- Removed the `TELEGRAM_API_ID`, `TELEGRAM_API_HASH`, `TELEGRAM_PHONE`, `BOT_TOKEN`, `LOG_LEVEL`, `LOG_FILE`, `MAX_CONCURRENT_TASKS`, `MESSAGE_QUEUE_DELAY`, and `SECRET_KEY` entries from `.env.example`/`docker-compose.yml` — none of these were ever read anywhere in the application; only `API_KEY`, `WEB_HOST`, and `WEB_PORT` are real, load-bearing settings.
+
+### Changed
+
+- `Bot.start()` no longer wraps its body in a `try/except Exception as err: raise err`, which was a no-op that just added noise.
+- `main.py`'s `shutdown()` now logs any non-cancellation exception raised by a task during shutdown instead of silently discarding it via `return_exceptions=True`.
 
 ## [2.3.0] - 2026-03-31
 

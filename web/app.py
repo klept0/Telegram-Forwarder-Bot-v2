@@ -1,6 +1,7 @@
 """FastAPI web interface for Telegram Forwarder Bot."""
 
 import os
+import secrets
 import sys
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -10,7 +11,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from typing import Dict, List, Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
@@ -18,7 +19,24 @@ from pydantic import BaseModel
 from starlette.requests import Request
 
 from source.core.Telegram import Telegram
+from source.model.Credentials import Credentials
 from source.model.ForwardConfig import ForwardConfig
+
+# The dashboard controls a real Telegram account (listing chats, forwarding
+# messages), so every API route requires a shared-secret API key. Refuse to
+# serve requests if the operator hasn't set one, rather than defaulting to
+# an open API.
+API_KEY = os.getenv("API_KEY")
+
+
+async def verify_api_key(x_api_key: Optional[str] = Header(default=None)) -> None:
+    if not API_KEY:
+        raise HTTPException(
+            status_code=503,
+            detail="Server is missing the API_KEY environment variable; refusing to serve API requests.",
+        )
+    if not x_api_key or not secrets.compare_digest(x_api_key, API_KEY):
+        raise HTTPException(status_code=401, detail="Invalid or missing API key")
 
 
 # Pydantic models for API
@@ -66,20 +84,22 @@ async def lifespan(app: FastAPI):
     """Application lifespan manager."""
     global telegram_client
 
-    # Startup
+    # Startup: reuse a session created by the CLI (`python main.py`). The web
+    # dashboard never prompts for a login code itself, so this only succeeds
+    # once an account has already been authenticated interactively and a
+    # session file exists under sessions/.
     try:
-        # Initialize Telegram client if credentials are available
-        if all(
-            [
-                os.getenv("TELEGRAM_API_ID"),
-                os.getenv("TELEGRAM_API_HASH"),
-                os.getenv("TELEGRAM_PHONE"),
-            ]
-        ):
-            # This would need to be adapted based on your credential system
-            pass
+        credentials_list = Credentials.get_all()
+        if credentials_list:
+            telegram_client = await Telegram.create(credentials_list[0])
+        else:
+            print(
+                "No stored credentials found. Run `python main.py` once to "
+                "authenticate an account before using the web dashboard."
+            )
     except Exception as e:
         print(f"Failed to initialize Telegram client: {e}")
+        telegram_client = None
 
     yield
 
@@ -115,7 +135,9 @@ async def home(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
 
-@app.get("/api/status", response_model=StatusResponse)
+@app.get(
+    "/api/status", response_model=StatusResponse, dependencies=[Depends(verify_api_key)]
+)
 async def get_status():
     """Get bot status and queue metrics."""
     uptime_delta = datetime.now() - app_start_time
@@ -145,7 +167,9 @@ async def get_status():
     )
 
 
-@app.get("/api/chats", response_model=List[ChatInfo])
+@app.get(
+    "/api/chats", response_model=List[ChatInfo], dependencies=[Depends(verify_api_key)]
+)
 async def get_chats():
     """Get available chats."""
     try:
@@ -168,7 +192,9 @@ async def get_chats():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/forwards", response_model=List[Dict])
+@app.get(
+    "/api/forwards", response_model=List[Dict], dependencies=[Depends(verify_api_key)]
+)
 async def get_forwards():
     """Get forwarding configurations."""
     try:
@@ -187,7 +213,7 @@ async def get_forwards():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/api/forwards")
+@app.post("/api/forwards", dependencies=[Depends(verify_api_key)])
 async def create_forward(config: ForwardConfigCreate):
     """Create a new forwarding configuration."""
     try:
@@ -215,7 +241,7 @@ async def create_forward(config: ForwardConfigCreate):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.delete("/api/forwards/{source_id}")
+@app.delete("/api/forwards/{source_id}", dependencies=[Depends(verify_api_key)])
 async def delete_forward(source_id: int):
     """Delete a forwarding configuration."""
     try:
@@ -235,7 +261,7 @@ async def delete_forward(source_id: int):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/api/forwards/{source_id}/toggle")
+@app.post("/api/forwards/{source_id}/toggle", dependencies=[Depends(verify_api_key)])
 async def toggle_forward(source_id: int):
     """Toggle forwarding on/off."""
     try:
@@ -257,7 +283,7 @@ async def toggle_forward(source_id: int):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/api/start-forwarding")
+@app.post("/api/start-forwarding", dependencies=[Depends(verify_api_key)])
 async def start_forwarding():
     """Start live message forwarding."""
     try:
@@ -272,7 +298,7 @@ async def start_forwarding():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/api/stop-forwarding")
+@app.post("/api/stop-forwarding", dependencies=[Depends(verify_api_key)])
 async def stop_forwarding():
     """Stop live message forwarding."""
     try:
@@ -287,7 +313,7 @@ async def stop_forwarding():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/api/keyword-forward")
+@app.post("/api/keyword-forward", dependencies=[Depends(verify_api_key)])
 async def keyword_forward(request: KeywordForwardRequest):
     """Search by keyword and forward matching messages."""
     try:
@@ -325,4 +351,10 @@ async def keyword_forward(request: KeywordForwardRequest):
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    # Defaults to localhost-only; set WEB_HOST=0.0.0.0 explicitly (e.g. in a
+    # container behind a reverse proxy) to expose it beyond this machine.
+    uvicorn.run(
+        app,
+        host=os.getenv("WEB_HOST", "127.0.0.1"),
+        port=int(os.getenv("WEB_PORT", "8000")),
+    )

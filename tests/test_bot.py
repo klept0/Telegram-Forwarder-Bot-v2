@@ -30,7 +30,6 @@ class TestBot:
             patch("source.model.Credentials.Credentials.get_all") as mock_creds_get_all,
             patch("source.core.Telegram.Telegram.create") as mock_telegram_create,
         ):
-
             # Setup mocks
             mock_creds_get.return_value = mock_credentials
             mock_creds_get_all.return_value = []  # No existing credentials
@@ -61,7 +60,6 @@ class TestBot:
             patch("source.core.Bot.AccountSelector") as mock_selector_cls,
             patch("source.model.Credentials.Credentials.get_all") as mock_creds_get_all,
         ):
-
             mock_creds_get_all.return_value = []  # No existing credentials
 
             mock_selector = MagicMock()

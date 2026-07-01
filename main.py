@@ -23,7 +23,12 @@ async def shutdown(
     tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
     console.print(f"[bold yellow]Cancelling {len(tasks)} tasks...[/bold yellow]")
     [task.cancel() for task in tasks]
-    await asyncio.gather(*tasks, return_exceptions=True)
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    for result in results:
+        if isinstance(result, Exception) and not isinstance(
+            result, asyncio.CancelledError
+        ):
+            console.print(f"[bold red]Task raised during shutdown:[/bold red] {result}")
     loop.stop()
 
 

@@ -3,13 +3,6 @@ services:
     build: .
     container_name: telegram-forwarder-bot
     restart: unless-stopped
-    environment:
-      - TELEGRAM_API_ID=${TELEGRAM_API_ID}
-      - TELEGRAM_API_HASH=${TELEGRAM_API_HASH}
-      - BOT_TOKEN=${BOT_TOKEN}
-      - LOG_LEVEL=INFO
-      - MAX_CONCURRENT_TASKS=3
-      - MESSAGE_QUEUE_DELAY=1.0
     volumes:
       - ./resources:/app/resources
       - ./media:/app/media
@@ -30,73 +23,23 @@ services:
     restart: unless-stopped
     command: ["python", "web/app.py"]
     environment:
-      - TELEGRAM_API_ID=${TELEGRAM_API_ID}
-      - TELEGRAM_API_HASH=${TELEGRAM_API_HASH}
-      - TELEGRAM_PHONE=${TELEGRAM_PHONE}
+      # Required: shared secret the dashboard's /api/* routes require via
+      # the X-API-Key header. The app refuses to serve API requests if unset.
+      - API_KEY=${API_KEY:?API_KEY must be set to run the web dashboard}
+      - WEB_HOST=0.0.0.0
+      - WEB_PORT=8000
     volumes:
       - ./resources:/app/resources
       - ./sessions:/app/sessions
     ports:
-      - "8000:8000"
+      # Bound to localhost by default; put a reverse proxy in front (or
+      # change this) before exposing the dashboard beyond this machine.
+      - "127.0.0.1:8000:8000"
     networks:
       - telegram-network
     depends_on:
       - telegram-forwarder
 
-  # Optional: PostgreSQL for advanced data persistence
-  postgres:
-    image: postgres:15-alpine
-    container_name: telegram-forwarder-db
-    restart: unless-stopped
-    environment:
-      - POSTGRES_DB=telegram_forwarder
-      - POSTGRES_USER=telegram_user
-      - POSTGRES_PASSWORD=${DB_PASSWORD:-changeme123}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
-    ports:
-      - "5432:5432"
-    networks:
-      - telegram-network
-    profiles:
-      - db
-
-  # Optional: Redis for caching and session management
-  redis:
-    image: redis:7-alpine
-    container_name: telegram-forwarder-cache
-    restart: unless-stopped
-    command: redis-server --appendonly yes
-    volumes:
-      - redis_data:/data
-    ports:
-      - "6379:6379"
-    networks:
-      - telegram-network
-    profiles:
-      - cache
-
-  # Optional: Monitoring with Prometheus metrics
-  prometheus:
-    image: prom/prometheus:latest
-    container_name: telegram-forwarder-monitoring
-    restart: unless-stopped
-    volumes:
-      - ./docker/prometheus.yml:/etc/prometheus/prometheus.yml
-      - prometheus_data:/prometheus
-    ports:
-      - "9090:9090"
-    networks:
-      - telegram-network
-    profiles:
-      - monitoring
-
 networks:
   telegram-network:
     driver: bridge
-
-volumes:
-  postgres_data:
-  redis_data:
-  prometheus_data:

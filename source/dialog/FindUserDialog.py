@@ -7,7 +7,7 @@ from source.model.Chat import Chat
 class FindUserDialog(BaseDialog):
     async def get_config(self):
         """Get user tracking configuration.
-        
+
         Returns:
             tuple: (Chat, int) Selected user to track and messages per chat limit
         """
@@ -20,7 +20,7 @@ class FindUserDialog(BaseDialog):
 
     async def _get_wanted_user(self):
         """Get wanted user configuration.
-        
+
         Returns:
             Chat: Selected user to track
         """
@@ -29,10 +29,7 @@ class FindUserDialog(BaseDialog):
 
         # Show existing tracked users
         for i, chat in enumerate(chats):
-            options.append({
-                "name": chat.get_plain_display_name(),
-                "value": str(i)
-            })
+            options.append({"name": chat.get_plain_display_name(), "value": str(i)})
 
         choice = await self.show_options("Select target user:", options)
 
@@ -50,7 +47,7 @@ class FindUserDialog(BaseDialog):
 
     async def _get_message_limit(self):
         """Get number of messages to fetch per chat.
-        
+
         Returns:
             int: Number of messages to fetch per chat (default: 1)
         """
@@ -59,6 +56,6 @@ class FindUserDialog(BaseDialog):
                 message="Enter number of messages to fetch per chat (1-100):",
                 default="1",
                 validate=lambda x: x.isdigit() and 1 <= int(x) <= 100,
-                invalid_message="Please enter a number between 1 and 100"
+                invalid_message="Please enter a number between 1 and 100",
             ).execute_async()
             return int(limit)

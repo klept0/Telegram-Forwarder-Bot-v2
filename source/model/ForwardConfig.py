@@ -7,7 +7,6 @@ from source.utils.Constants import FORWARD_CONFIG_FILE_PATH
 
 
 class ForwardConfig:
-
     def __init__(
         self,
         sourceID=None,
