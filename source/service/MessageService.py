@@ -1,5 +1,7 @@
 from datetime import datetime, timezone
 
+from source.service.ForwardProgress import ForwardProgress
+from source.utils.Constants import DEFAULT_BATCH_SIZE
 from source.utils.DateUtils import DateUtils
 
 
@@ -38,34 +40,61 @@ class MessageService:
         self,
         source_id,
         destination_id,
-        keyword,
+        keyword=None,
         limit=None,
         start_date=None,
         end_date=None,
         timezone_name="UTC",
         dry_run=False,
     ):
+        """Search a chat's history and forward matches. `keyword` is
+        optional — leave it unset to forward every message in the range.
+
+        When both `start_date` and `end_date` are given, this is resumable:
+        re-running the same source/date-range/keyword combination skips
+        whatever was already forwarded (whether the prior run finished or
+        was interrupted) instead of sending duplicates.
+        """
         start_datetime, end_datetime = self._build_date_bounds(
             start_date, end_date, timezone_name
         )
+        keyword = (
+            keyword.strip() if isinstance(keyword, str) and keyword.strip() else None
+        )
+        keyword_label = f" matching keyword '{keyword}'" if keyword else ""
+
+        has_date_range = bool(start_date and end_date)
+        last_message_id = 0
+        if has_date_range:
+            last_message_id = ForwardProgress.load(
+                source_id, start_date, end_date, keyword=keyword
+            )
+            if last_message_id > 0:
+                self.console.print(
+                    f"[bold yellow]Resuming: skipping messages already forwarded "
+                    f"up through {last_message_id}[/bold yellow]"
+                )
 
         matches = []
         async for message in self.client.iter_messages(
             source_id,
             search=keyword,
             limit=limit,
+            min_id=last_message_id,
         ):
             if self._in_date_range(message.date, start_datetime, end_datetime):
                 matches.append(message)
 
         if dry_run:
             self.console.print(
-                f"[bold cyan]Dry-run:[/bold cyan] {len(matches)} messages match keyword '{keyword}'"
+                f"[bold cyan]Dry-run:[/bold cyan] {len(matches)} messages"
+                f"{keyword_label} remain to forward"
             )
-            return 0
+            return len(matches)
 
         sent_count = 0
-        for message in reversed(matches):
+        last_forwarded_id = last_message_id
+        for i, message in enumerate(reversed(matches), 1):
             if self.queue:
                 await self.queue.put(
                     (self._forward_message, (destination_id, message, None))
@@ -73,9 +102,24 @@ class MessageService:
             else:
                 await self._forward_message(destination_id, message)
             sent_count += 1
+            last_forwarded_id = max(last_forwarded_id, message.id)
+
+            if has_date_range and i % DEFAULT_BATCH_SIZE == 0:
+                ForwardProgress.save(
+                    source_id, last_forwarded_id, start_date, end_date, keyword=keyword
+                )
+
+        if has_date_range:
+            if matches:
+                ForwardProgress.save(
+                    source_id, last_forwarded_id, start_date, end_date, keyword=keyword
+                )
+            ForwardProgress.mark_completed(
+                source_id, start_date, end_date, keyword=keyword
+            )
 
         self.console.print(
-            f"[bold green]Forwarded {sent_count} messages matching keyword '{keyword}'[/bold green]"
+            f"[bold green]Forwarded {sent_count} messages{keyword_label}[/bold green]"
         )
         return sent_count
 

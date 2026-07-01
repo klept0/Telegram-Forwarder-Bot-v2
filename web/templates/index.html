@@ -53,8 +53,8 @@
                     <input type="number" id="keyword-dest-id" required>
                 </div>
                 <div class="form-group">
-                    <label for="keyword-value">Keyword</label>
-                    <input type="text" id="keyword-value" required>
+                    <label for="keyword-value">Keyword (optional — leave blank to forward all messages)</label>
+                    <input type="text" id="keyword-value">
                 </div>
                 <div class="form-group">
                     <label for="keyword-limit">Scan Limit</label>
@@ -223,7 +223,7 @@
             const payload = {
                 source_id: parseInt(document.getElementById('keyword-source-id').value),
                 destination_id: parseInt(document.getElementById('keyword-dest-id').value),
-                keyword: document.getElementById('keyword-value').value.trim(),
+                keyword: document.getElementById('keyword-value').value.trim() || null,
                 limit: parseInt(document.getElementById('keyword-limit').value),
                 start_date: document.getElementById('keyword-start-date').value || null,
                 end_date: document.getElementById('keyword-end-date').value || null,

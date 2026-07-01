@@ -20,11 +20,10 @@ class KeywordForwardDialog(DateRangeDialog):
             return None
 
         keyword_value = await inquirer.text(
-            message="Enter keyword to search for:",
-            validate=lambda x: bool(x and x.strip()),
-            invalid_message="Keyword cannot be empty",
+            message="Enter keyword to search for (leave blank to forward all messages):",
         ).execute_async()
         keyword = keyword_value.strip() if isinstance(keyword_value, str) else ""
+        keyword = keyword or None
 
         limit_value = await inquirer.text(
             message="Max messages to scan (1-5000, default 500):",

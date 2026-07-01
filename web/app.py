@@ -73,7 +73,7 @@ class ChatInfo(BaseModel):
 class KeywordForwardRequest(BaseModel):
     source_id: int
     destination_id: int
-    keyword: str
+    keyword: Optional[str] = None
     limit: int = 500
     start_date: Optional[str] = None
     end_date: Optional[str] = None
@@ -347,10 +347,10 @@ async def keyword_forward(request: KeywordForwardRequest):
         )
 
         mode = "previewed" if request.dry_run else "forwarded"
+        keyword_label = f" for keyword '{request.keyword}'" if request.keyword else ""
         return {
             "message": (
-                f"Keyword run completed: {sent_count} messages {mode} "
-                f"for keyword '{request.keyword}'."
+                f"Keyword run completed: {sent_count} messages {mode}{keyword_label}."
             )
         }
     except HTTPException:
