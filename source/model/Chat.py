@@ -11,10 +11,10 @@ from source.utils.Constants import (
 
 class Chat:
     """A class representing a Telegram chat entity with persistence capabilities.
-    
+
     This class handles chat data management including reading/writing chat information
     to files and managing ignore lists and wanted user configurations.
-    
+
     Attributes:
         id (int): The Telegram chat ID
         title (str): The chat title/name
@@ -22,7 +22,14 @@ class Chat:
         username (str): The username associated with the chat
     """
 
-    def __init__(self, id: int = None, title: str = None, type: str = None, username: str = None, access_hash: int = None):
+    def __init__(
+        self,
+        id: int | None = None,
+        title: str | None = None,
+        type: str | None = None,
+        username: str | None = None,
+        access_hash: int | None = None,
+    ):
         self.id = id
         self.title = title
         self.type = type
@@ -32,10 +39,10 @@ class Chat:
     @staticmethod
     def write(chats) -> list:
         """Writes chat information to a file.
-        
+
         Args:
             chats: List of Telegram chat objects to persist
-            
+
         Returns:
             list: List of processed chat dictionaries
         """
@@ -57,21 +64,21 @@ class Chat:
                 "title": chat.title,
                 "type": chat_type,
                 "username": username,
-                "access_hash": access_hash
+                "access_hash": access_hash,
             }
             chats_list.append(chat_dict)
-        #To get older channels first
+        # To get older channels first
         chats_list = sorted(chats_list, key=lambda x: x["id"])
-        #Sort by title for better readability
+        # Sort by title for better readability
         chats_list = sorted(chats_list, key=lambda x: x["title"])
         with open(CHAT_FILE_PATH, "w") as chats_file:
             json.dump(chats_list, chats_file, indent=4)
         return chats_list
 
     @staticmethod
-    def read() -> list['Chat']:
+    def read() -> list["Chat"]:
         """Reads chat information from file.
-        
+
         Returns:
             list[Chat]: List of Chat objects loaded from file
         """
@@ -88,7 +95,7 @@ class Chat:
     @staticmethod
     def read_wanted_users():
         """Reads wanted users from file.
-        
+
         Returns:
             list[Chat]: List of Chat objects for wanted users
         """
@@ -107,7 +114,7 @@ class Chat:
     @staticmethod
     def write_wanted_users(chats_list):
         """Writes wanted users to file.
-        
+
         Args:
             chats_list: List of Chat objects to save
         """
@@ -115,9 +122,9 @@ class Chat:
             json.dump([chat.__dict__ for chat in chats_list], user_file, indent=4)
 
     @staticmethod
-    async def scan_ignore_chats() -> list['Chat']:
+    async def scan_ignore_chats() -> list["Chat"]:
         """Interactively scans for chats to ignore.
-        
+
         Returns:
             list[Chat]: List of Chat objects to ignore
         """
@@ -134,9 +141,9 @@ class Chat:
         return ignore_list
 
     @staticmethod
-    async def scan_wanted_user() -> 'Chat':
+    async def scan_wanted_user() -> "Chat | None":
         """Interactively scans for a wanted user.
-        
+
         Returns:
             Chat: The selected wanted user Chat object, or None if cancelled
         """
@@ -165,7 +172,7 @@ class Chat:
 
     def get_display_name(self) -> str:
         """Returns a standardized display string for the chat with Rich formatting.
-        
+
         Returns:
             str: Formatted string with chat information including type, ID, username, title, and access hash
         """
@@ -173,8 +180,8 @@ class Chat:
             "Channel": "cyan",
             "Group": "green",
             "User": "yellow",
-            "UNKNOWN": "red"
-        }.get(self.type, "white")
+            "UNKNOWN": "red",
+        }.get(self.type or "", "white")
 
         # Pad all fields to fixed widths
         type_padded = f"Type: {self.type:<10}"
@@ -186,7 +193,7 @@ class Chat:
             f"[{type_color}]{type_padded}[/]",
             f"[dim]{id_padded}[/]",
             f"[blue]{username_padded}[/]",
-            f"[bold]{title_padded}[/]"
+            f"[bold]{title_padded}[/]",
         ]
         return " | ".join(display_parts)
 
@@ -198,10 +205,5 @@ class Chat:
         username_padded = f"Username: {self.username if self.username else '':<30}"
         title_padded = f"Title: {self.title:<100}"
 
-        display_parts = [
-            type_padded,
-            id_padded,
-            username_padded,
-            title_padded
-        ]
+        display_parts = [type_padded, id_padded, username_padded, title_padded]
         return " | ".join(display_parts)

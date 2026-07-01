@@ -204,8 +204,7 @@ class ForwardDialog(BaseDialog):
                 return date_input
             else:
                 self.console.print(
-                    "[bold red]Error:[/bold red] Invalid date format. "
-                    "Use YYYY-MM-DD."
+                    "[bold red]Error:[/bold red] Invalid date format. Use YYYY-MM-DD."
                 )
                 return await self._get_date_input(prompt)
         except KeyboardInterrupt:

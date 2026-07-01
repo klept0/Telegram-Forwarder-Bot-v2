@@ -14,5 +14,5 @@ SESSION_PREFIX_PATH = f"{SESSION_FOLDER_PATH}/session_"
 
 # Forwarding configuration constants
 DEFAULT_CHUNK_SIZE = 500  # Messages per chunk when retrieving from Telegram
-DEFAULT_BATCH_SIZE = 50   # Messages to process before saving progress
+DEFAULT_BATCH_SIZE = 50  # Messages to process before saving progress
 DEFAULT_RATE_LIMIT_DELAY = 1.0  # Seconds between message sends

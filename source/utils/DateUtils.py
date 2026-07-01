@@ -114,8 +114,9 @@ class DateUtils:
     def get_local_timezone_name() -> str:
         """Get local system timezone name, with UTC fallback."""
         local_tz = datetime.now().astimezone().tzinfo
-        if hasattr(local_tz, "key") and local_tz.key:
-            return local_tz.key
+        key = getattr(local_tz, "key", None)
+        if key:
+            return key
         return "UTC"
 
     @staticmethod

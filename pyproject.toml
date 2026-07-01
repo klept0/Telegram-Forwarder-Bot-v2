@@ -46,6 +46,16 @@ web = [
     "websockets>=12.0",
     "python-multipart>=0.0.6",
 ]
+dev = [
+    "ruff>=0.1.14",
+    "mypy>=1.8.0",
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=4.1.0",
+]
+docs = [
+    "sphinx>=7.2.0",
+]
 
 [project.urls]
 Homepage = "https://github.com/klept0/Telegram-Forwarder-Bot-v2"
@@ -62,3 +72,13 @@ include = ["source*"]
 
 [tool.setuptools.package-data]
 "source" = ["**/*.json", "**/*.txt"]
+
+[tool.mypy]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# InquirerPy ships type hints that incorrectly annotate execute_async() as
+# returning None, which trips mypy's func-returns-value check on every call
+# site. Treat it as untyped rather than chasing false positives.
+module = "InquirerPy.*"
+follow_imports = "skip"

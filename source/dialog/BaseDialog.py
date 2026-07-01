@@ -18,10 +18,7 @@ class BaseDialog:
         options = [{"name": "Stop", "value": "-1"}]
 
         for i, chat in enumerate(chats):
-            options.append({
-                "name": chat.get_plain_display_name(),
-                "value": str(i)
-            })
+            options.append({"name": chat.get_plain_display_name(), "value": str(i)})
 
         choice = await self.show_options(f"Enter {type_label} channel", options)
         return int(choice)
