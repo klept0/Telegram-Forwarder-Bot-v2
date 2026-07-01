@@ -20,9 +20,6 @@ class Bot:
         return self._status
 
     async def start(self):
-        try:
-            self.telegram = await self.account_selector.select_account()
-            self.main_menu = MainMenu(self.telegram)
-            await self.main_menu.start()
-        except Exception as err:
-            raise err
+        self.telegram = await self.account_selector.select_account()
+        self.main_menu = MainMenu(self.telegram)
+        await self.main_menu.start()

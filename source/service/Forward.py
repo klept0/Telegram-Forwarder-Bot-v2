@@ -539,15 +539,9 @@ class Forward:
         self, destination_id: int, message: Message, reply_to: int | None = None
     ) -> None:
         try:
-            sent_message = await self.message_forward.forward_message(
-                destination_id, message, reply_to
+            await self.message_forward.forward_message(
+                destination_id, message, reply_to, on_sent=self._on_message_sent
             )
-            if sent_message:
-                if isinstance(sent_message, list):
-                    if sent_message:
-                        self._update_history(message, sent_message[0])
-                else:
-                    self._update_history(message, sent_message)
         except Exception as e:
             console.print(f"[bold red]Error forwarding message:[/bold red] {e}")
 
@@ -558,15 +552,33 @@ class Forward:
         reply_to: int | None = None,
     ) -> None:
         try:
-            sent_messages = await self.message_forward.forward_album(
-                destination_id, event.messages, event.text, reply_to
+            await self.message_forward.forward_album(
+                destination_id,
+                event.messages,
+                event.text,
+                reply_to,
+                on_sent=lambda _source_messages, sent_messages: self._on_album_sent(
+                    event, sent_messages, destination_id
+                ),
             )
-            if sent_messages:
-                if not isinstance(sent_messages, list):
-                    sent_messages = [sent_messages]
-                self._update_album_history(event, sent_messages, destination_id)
         except Exception as e:
             console.print(f"[bold red]Error forwarding album:[/bold red] {e}")
+
+    def _on_message_sent(self, source_message: Message, sent_message) -> None:
+        if not sent_message:
+            return
+        if isinstance(sent_message, list):
+            if sent_message:
+                self._update_history(source_message, sent_message[0])
+        else:
+            self._update_history(source_message, sent_message)
+
+    def _on_album_sent(self, event, sent_messages, destination_id: int) -> None:
+        if not sent_messages:
+            return
+        if not isinstance(sent_messages, list):
+            sent_messages = [sent_messages]
+        self._update_album_history(event, sent_messages, destination_id)
 
     def _update_history(self, source_message: Message, sent_message: Message) -> None:
         self.history.add_mapping(

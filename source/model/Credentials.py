@@ -3,9 +3,11 @@ import os
 
 from InquirerPy import inquirer
 
+from source.utils.Constants import CREDENTIALS_FILE_PATH
+
 
 class Credentials:
-    CREDENTIALS_FILE = "resources/credentials.json"
+    CREDENTIALS_FILE = CREDENTIALS_FILE_PATH
 
     def __init__(self, api_id=None, api_hash=None, phone_number=None):
         self.api_id = api_id
@@ -66,3 +68,5 @@ class Credentials:
         os.makedirs(os.path.dirname(Credentials.CREDENTIALS_FILE), exist_ok=True)
         with open(Credentials.CREDENTIALS_FILE, 'w') as f:
             json.dump(existing, f, indent=2)
+        # Contains api_hash/phone_number in plaintext; restrict to owner only.
+        os.chmod(Credentials.CREDENTIALS_FILE, 0o600)

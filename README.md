@@ -179,23 +179,21 @@ Choose one of the following installation methods:
 
 ### Environment Variables
 
-Create a `.env` file in the project root:
+Telegram account credentials are entered interactively on first run
+(`python main.py`) and stored in `resources/credentials.json` — they are
+not read from environment variables.
+
+The web dashboard (`web/app.py`) does use environment variables. Create a
+`.env` file in the project root (see `.env.example`):
 
 ```env
-# Telegram API Credentials
-TELEGRAM_API_ID=your_api_id_here
-TELEGRAM_API_HASH=your_api_hash_here
+# Required: shared secret clients must send as the X-API-Key header on
+# every /api/* request. The dashboard refuses to serve requests without it.
+API_KEY=change_me_to_a_long_random_value
 
-# Optional: Bot Token (if using bot account)
-BOT_TOKEN=your_bot_token_here
-
-# Logging Configuration
-LOG_LEVEL=INFO
-LOG_FILE=logs/bot.log
-
-# Application Settings
-MAX_CONCURRENT_TASKS=3
-MESSAGE_QUEUE_DELAY=1.0
+# Optional: bind address/port for the web dashboard (defaults shown below)
+WEB_HOST=127.0.0.1
+WEB_PORT=8000
 ```
 
 ### Getting Telegram API Credentials
@@ -322,8 +320,7 @@ telegram-forwarder-bot-v2/
 │   └── utils/
 │       ├── __init__.py
 │       ├── Console.py
-│       ├── Constants.py
-│       └── RateLimiter.py
+│       └── Constants.py
 ├── web/
 │   ├── __init__.py
 │   ├── app.py

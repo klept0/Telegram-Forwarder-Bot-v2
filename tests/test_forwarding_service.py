@@ -49,6 +49,60 @@ async def test_forward_album_uses_forward_messages_and_not_send_messages():
 
 
 @pytest.mark.asyncio
+async def test_forward_message_notifies_actual_sent_message_when_queued():
+    """A queued send must report the real destination message to on_sent,
+    not the source message that was originally passed in."""
+    client = AsyncMock()
+    dest_message = MagicMock(id=9001, chat_id=-100222)
+    client.forward_messages.return_value = dest_message
+
+    queue = MessageQueue(max_concurrent=1, delay=0)
+    service = MessageForwardService(client, queue=queue)
+    source_message = MagicMock(id=1001, chat_id=-100111)
+
+    seen = []
+    result = await service.forward_message(
+        -100222, source_message, on_sent=lambda src, sent: seen.append((src, sent))
+    )
+
+    # Queued sends can't know the result yet, so they must not fake one.
+    assert result is None
+
+    await asyncio.wait_for(queue.queue.join(), timeout=1)
+    await queue.stop()
+
+    assert seen == [(source_message, dest_message)]
+
+
+@pytest.mark.asyncio
+async def test_forward_updates_history_with_destination_message_when_queued(
+    tmp_path, monkeypatch
+):
+    """Regression test: Forward._forward_message must map history using the
+    real destination message id, not the source message id."""
+    monkeypatch.setattr(
+        "source.model.History.HISTORY_FILE_PATH", str(tmp_path / "history.json")
+    )
+
+    client = AsyncMock()
+    dest_message = MagicMock(id=9001, chat_id=-100222)
+    client.forward_messages.return_value = dest_message
+
+    queue = MessageQueue(max_concurrent=1, delay=0)
+    config = MagicMock(destinationID=-100222)
+    forward = Forward(client, {-100111: config}, queue)
+
+    source_message = MagicMock(id=1001, chat_id=-100111, is_reply=False)
+    await forward._forward_message(-100222, source_message)
+
+    await asyncio.wait_for(queue.queue.join(), timeout=1)
+    await queue.stop()
+
+    mapping = forward.history.get_mapping(-100111, 1001, -100222)
+    assert mapping == 9001
+
+
+@pytest.mark.asyncio
 async def test_message_queue_keeps_processing_after_task_failure():
     queue = MessageQueue(max_concurrent=1, delay=0)
     events = []
