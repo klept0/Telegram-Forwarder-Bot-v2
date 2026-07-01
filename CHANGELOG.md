@@ -9,7 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- New `Forward Media Files (Files/Images)` menu option (`source/dialog/MediaForwardDialog.py`, `Telegram.forward_media_files`) to forward only messages that carry a file/photo/video from a source chat's history, optionally filtered by keyword, in the order they were originally posted. Shares the same resumable progress tracking, date-range selection, and dry-run flow as `Past Forward Messages`.
+- Dry-run preview for both `Past Forward Messages` and the new media forward now reports the **exact total count** of matching messages/files (not an estimate), and labels the count as "files" vs "messages" depending on mode.
+- Extracted the shared month/date-range/timezone/dry-run prompts out of `ForwardDialog` and `KeywordForwardDialog` into a new `source/dialog/DateRangeDialog.py` mixin, reused by the new `MediaForwardDialog` — removes ~150 lines of duplicated dialog code across the three forwarding flows.
+
 ### Fixed
+
+- **Historical forwarding did not actually forward messages in the order they were posted.** `Forward._forward_chat_history` paged backward from the newest message in `DEFAULT_CHUNK_SIZE`-sized chunks and only reversed the order *within* each chunk — so across chunk boundaries, the global forward order looked like `[newest-chunk oldest→newest], [next-older-chunk oldest→newest], ...` rather than a single ascending sequence. Fixed by fetching chunks directly in ascending order via Telethon's `reverse=True`, which also lets the scan stop as soon as it passes the configured end date instead of always paging until a short chunk is returned.
+- Re-running a forward (`Past Forward Messages` or the new media forward) over a source/date-range/mode that had already **completed** silently restarted from the beginning and could re-forward everything — `_load_progress` only resumed for a prior run marked `"in_progress"`, not `"completed"`. Since Telegram message IDs are never reused, it now resumes from the last processed message ID for both statuses, so re-running the same range (e.g. re-running "all of June") picks up after what's already been sent instead of duplicating it. Use `Clear Forward Progress Cache` to force a full re-scan.
 
 - **CI was completely non-functional.** `pyproject.toml` had no `dev` or `docs` extras, so `pip install -e ".[dev]"` silently installed none of `ruff`/`mypy`/`pytest-asyncio`/`pytest-cov`, and every job in the `test` matrix failed at the linting step with `ruff: command not found`. Added `dev` and `docs` extras with the tools each CI step actually needs.
 - `.github/workflows/ci.yml`'s `security` and `docs` jobs failed immediately (before running any of their steps) because `actions/upload-artifact@v3` is a hard-blocked deprecated action. Bumped to `v4`, along with `actions/setup-python@v4→v5`, `actions/cache@v3→v4`, and `codecov/codecov-action@v3→v4` in the same file to clear the accompanying deprecation warnings.

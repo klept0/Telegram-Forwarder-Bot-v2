@@ -67,9 +67,13 @@ class Forward:
             end_date = getattr(config, "end_date", None)
             timezone_name = getattr(config, "timezone_name", "UTC")
             dry_run = bool(getattr(config, "dry_run", False))
+            media_only = bool(getattr(config, "media_only", False))
+            keyword = getattr(config, "keyword", None) or None
 
             # Check if there's existing progress to resume
-            last_message_id = await self._load_progress(source, start_date, end_date)
+            last_message_id = await self._load_progress(
+                source, start_date, end_date, media_only, keyword
+            )
             if last_message_id > 0:
                 console.print(
                     f"[bold yellow]Resuming from message {last_message_id} for chat {source}[/bold yellow]"
@@ -82,11 +86,15 @@ class Forward:
                 end_date,
                 timezone_name,
                 dry_run,
+                media_only,
+                keyword,
             )
 
             # Mark progress as completed
             if not dry_run:
-                await self._mark_progress_completed(source, start_date, end_date)
+                await self._mark_progress_completed(
+                    source, start_date, end_date, media_only, keyword
+                )
 
     async def _forward_chat_history(
         self,
@@ -96,14 +104,19 @@ class Forward:
         end_date: str | None = None,
         timezone_name: str = "UTC",
         dry_run: bool = False,
+        media_only: bool = False,
+        keyword: str | None = None,
     ) -> None:
-        """Forward chat history with optional date filtering and chunked processing.
+        """Forward chat history with optional date/media/keyword filtering and
+        chunked processing.
 
         Args:
             source: Source chat ID
             last_message_id: Last processed message ID
             start_date: Start date filter (YYYY-MM-DD) or None
             end_date: End date filter (YYYY-MM-DD) or None
+            media_only: Only forward messages carrying a file/photo/video
+            keyword: Only forward messages whose text/caption contains this
         """
         # Configuration for chunked processing
         CHUNK_SIZE = DEFAULT_CHUNK_SIZE  # Number of messages to retrieve per chunk
@@ -118,11 +131,18 @@ class Forward:
 
         if dry_run:
             match_count = await self.count_messages_in_range(
-                source, last_message_id, start_datetime, end_datetime
+                source,
+                last_message_id,
+                start_datetime,
+                end_datetime,
+                media_only,
+                keyword,
             )
+            item_label = "files" if media_only else "messages"
+            keyword_label = f" matching keyword '{keyword}'" if keyword else ""
             console.print(
                 "[bold cyan]Dry-run complete:[/bold cyan] "
-                f"{match_count} messages match range "
+                f"{match_count} {item_label}{keyword_label} match range "
                 f"{start_date or 'beginning'} to {end_date or 'latest'} "
                 f"in timezone {timezone_name}"
             )
@@ -145,45 +165,38 @@ class Forward:
             )
             return
 
-        # Process messages in chunks
+        # Process messages in chunks, oldest-to-newest, so files/messages are
+        # forwarded in the order they were originally posted.
         processed_count = 0
-        chunk_offset_id = 0  # Start from the most recent message
+        cursor_id = last_message_id
+        reached_end = False
 
         # Start background status updater for queue monitoring
         status_task = asyncio.create_task(self._periodic_status_update())
 
         try:
-            while True:
-                # Get next chunk of messages
-                chunk_messages = await self.client.get_messages(
-                    source,
-                    limit=CHUNK_SIZE,
-                    offset_id=chunk_offset_id,
-                    min_id=last_message_id,
+            while not reached_end:
+                chunk_messages = await self._fetch_ascending_chunk(
+                    source, cursor_id, start_datetime, CHUNK_SIZE
                 )
 
                 if not chunk_messages:
                     break  # No more messages
 
-                chunk_offset_id = chunk_messages[
-                    -1
-                ].id  # Use last message ID for next chunk
+                cursor_id = chunk_messages[-1].id  # Highest ID fetched so far
 
-                # Strictly enforce configured date range boundaries.
-                messages = [
-                    msg
-                    for msg in chunk_messages
-                    if self.in_date_range(msg, start_datetime, end_datetime)
-                ]
-
-                if not messages:
-                    # Continue scanning older chunks to find in-range messages.
-                    if len(chunk_messages) < CHUNK_SIZE:
+                # Messages already come back oldest-first when reverse=True.
+                messages = []
+                for msg in chunk_messages:
+                    if end_datetime and self._is_after(msg, end_datetime):
+                        reached_end = True
                         break
-                    continue
+                    if self.matches_criteria(
+                        msg, start_datetime, end_datetime, media_only, keyword
+                    ):
+                        messages.append(msg)
 
-                # Process messages in batches
-                for i, message in enumerate(reversed(messages), 1):
+                for i, message in enumerate(messages, 1):
                     current_total = processed_count + i
                     percentage = (
                         (current_total / total_messages) * 100
@@ -212,21 +225,28 @@ class Forward:
                     # Save progress every BATCH_SIZE messages
                     if current_total % BATCH_SIZE == 0:
                         await self._save_progress(
-                            source, last_message_id, start_date, end_date
+                            source,
+                            last_message_id,
+                            start_date,
+                            end_date,
+                            media_only,
+                            keyword,
                         )
 
                 processed_count += len(messages)
 
-                # Break if we've processed all messages in the date range
                 if len(chunk_messages) < CHUNK_SIZE:
                     break
 
             # Final progress save
-            await self._save_progress(source, last_message_id, start_date, end_date)
+            await self._save_progress(
+                source, last_message_id, start_date, end_date, media_only, keyword
+            )
 
             # Clear the progress line and show completion
+            item_label = "files" if media_only else "messages"
             console.print(
-                f"[bold green]✓ Completed forwarding {processed_count} messages[/bold green]"
+                f"[bold green]✓ Completed forwarding {processed_count} {item_label}[/bold green]"
             )
 
         finally:
@@ -293,30 +313,34 @@ class Forward:
         last_message_id: int,
         start_datetime: datetime | None,
         end_datetime: datetime | None,
+        media_only: bool = False,
+        keyword: str | None = None,
     ) -> int:
         """Count source messages in range without forwarding any message."""
-        chunk_offset_id = 0
+        cursor_id = last_message_id
         total = 0
 
         while True:
-            chunk_messages = await self.client.get_messages(
-                source,
-                limit=DEFAULT_CHUNK_SIZE,
-                offset_id=chunk_offset_id,
-                min_id=last_message_id,
+            chunk_messages = await self._fetch_ascending_chunk(
+                source, cursor_id, start_datetime, DEFAULT_CHUNK_SIZE
             )
 
             if not chunk_messages:
                 break
 
-            chunk_offset_id = chunk_messages[-1].id
-            total += sum(
-                1
-                for msg in chunk_messages
-                if self.in_date_range(msg, start_datetime, end_datetime)
-            )
+            cursor_id = chunk_messages[-1].id
 
-            if len(chunk_messages) < DEFAULT_CHUNK_SIZE:
+            reached_end = False
+            for msg in chunk_messages:
+                if end_datetime and self._is_after(msg, end_datetime):
+                    reached_end = True
+                    break
+                if self.matches_criteria(
+                    msg, start_datetime, end_datetime, media_only, keyword
+                ):
+                    total += 1
+
+            if reached_end or len(chunk_messages) < DEFAULT_CHUNK_SIZE:
                 break
 
         return total
@@ -327,6 +351,8 @@ class Forward:
         last_message_id: int,
         start_date: str | None = None,
         end_date: str | None = None,
+        media_only: bool = False,
+        keyword: str | None = None,
     ) -> None:
         """Save forwarding progress for this chat to resume later.
 
@@ -337,7 +363,9 @@ class Forward:
         import json
 
         progress_file = FORWARD_PROGRESS_FILE_PATH
-        progress_key = self.progress_key(source, start_date, end_date)
+        progress_key = self.progress_key(
+            source, start_date, end_date, media_only, keyword
+        )
 
         # Load existing progress
         progress_data = {}
@@ -373,8 +401,16 @@ class Forward:
         source: int,
         start_date: str | None = None,
         end_date: str | None = None,
+        media_only: bool = False,
+        keyword: str | None = None,
     ) -> int:
         """Load saved progress for this chat.
+
+        Resumes from the last processed message ID regardless of whether that
+        prior run finished ("completed") or was interrupted ("in_progress"):
+        re-running the same source/date-range/mode should pick up after
+        whatever was already forwarded, not re-forward it, since message IDs
+        never get reused.
 
         Args:
             source: Source chat ID
@@ -385,7 +421,9 @@ class Forward:
         import json
 
         progress_file = FORWARD_PROGRESS_FILE_PATH
-        progress_key = self.progress_key(source, start_date, end_date)
+        progress_key = self.progress_key(
+            source, start_date, end_date, media_only, keyword
+        )
 
         if not os.path.exists(progress_file):
             return 0
@@ -395,12 +433,18 @@ class Forward:
                 progress_data = json.load(f)
 
             chat_progress = progress_data.get(progress_key)
-            if chat_progress and chat_progress.get("status") == "in_progress":
+            if chat_progress and chat_progress.get("status") in (
+                "in_progress",
+                "completed",
+            ):
                 return chat_progress.get("last_message_id", 0)
 
             # Backward compatibility: older progress files keyed only by source id.
             legacy_progress = progress_data.get(str(source))
-            if legacy_progress and legacy_progress.get("status") == "in_progress":
+            if legacy_progress and legacy_progress.get("status") in (
+                "in_progress",
+                "completed",
+            ):
                 return legacy_progress.get("last_message_id", 0)
 
         except (json.JSONDecodeError, OSError, KeyError):
@@ -413,6 +457,8 @@ class Forward:
         source: int,
         start_date: str | None = None,
         end_date: str | None = None,
+        media_only: bool = False,
+        keyword: str | None = None,
     ) -> None:
         """Mark progress as completed for this chat.
 
@@ -422,7 +468,9 @@ class Forward:
         import json
 
         progress_file = FORWARD_PROGRESS_FILE_PATH
-        progress_key = self.progress_key(source, start_date, end_date)
+        progress_key = self.progress_key(
+            source, start_date, end_date, media_only, keyword
+        )
 
         # Load existing progress
         progress_data = {}
@@ -445,11 +493,25 @@ class Forward:
                 pass  # Ignore save errors for completion marking
 
     def progress_key(
-        self, source: int, start_date: str | None = None, end_date: str | None = None
+        self,
+        source: int,
+        start_date: str | None = None,
+        end_date: str | None = None,
+        media_only: bool = False,
+        keyword: str | None = None,
     ) -> str:
         start_value = start_date or "none"
         end_value = end_date or "none"
-        return f"{source}|{start_value}|{end_value}"
+        key = f"{source}|{start_value}|{end_value}"
+        # Keep the plain "forward everything" key format unchanged so existing
+        # forward_progress.json entries keep resolving; media/keyword runs get
+        # a distinct suffix so they track separately from a plain history run
+        # over the same date range.
+        if media_only:
+            key += "|media"
+        if keyword:
+            key += f"|kw:{keyword.lower()}"
+        return key
 
     def build_date_bounds(
         self,
@@ -477,12 +539,12 @@ class Forward:
 
         return start_datetime, end_datetime
 
-    def in_date_range(
+    def _normalized_message_date(
         self,
         message: Message,
         start_datetime: datetime | None,
         end_datetime: datetime | None,
-    ) -> bool:
+    ) -> datetime:
         message_date = message.date
 
         # Ensure comparisons are timezone-aware and comparable.
@@ -498,13 +560,69 @@ class Forward:
                 else timezone.utc
             )
         )
-        message_date = message_date.astimezone(target_tz)
+        return message_date.astimezone(target_tz)
+
+    def in_date_range(
+        self,
+        message: Message,
+        start_datetime: datetime | None,
+        end_datetime: datetime | None,
+    ) -> bool:
+        message_date = self._normalized_message_date(
+            message, start_datetime, end_datetime
+        )
 
         if start_datetime and message_date < start_datetime:
             return False
         if end_datetime and message_date > end_datetime:
             return False
         return True
+
+    def _is_after(self, message: Message, end_datetime: datetime) -> bool:
+        """True once a message (fetched in ascending order) has passed the
+        configured end of the range, meaning every later message will too."""
+        message_date = self._normalized_message_date(message, None, end_datetime)
+        return message_date > end_datetime
+
+    def matches_criteria(
+        self,
+        message: Message,
+        start_datetime: datetime | None,
+        end_datetime: datetime | None,
+        media_only: bool = False,
+        keyword: str | None = None,
+    ) -> bool:
+        """Combined date range / media-presence / keyword filter for a message."""
+        if not self.in_date_range(message, start_datetime, end_datetime):
+            return False
+        if media_only and not message.media:
+            return False
+        if keyword:
+            text = (message.text or getattr(message, "message", "") or "").lower()
+            if keyword.lower() not in text:
+                return False
+        return True
+
+    async def _fetch_ascending_chunk(
+        self,
+        source: int,
+        cursor_id: int,
+        start_datetime: datetime | None,
+        limit: int,
+    ) -> list[Message]:
+        """Fetch the next chunk of messages in ascending (oldest-first) order.
+
+        On the very first fetch (no resume cursor yet) and a start date is
+        configured, jump directly to that date instead of scanning the whole
+        chat history from message 1 forward.
+        """
+        if cursor_id == 0 and start_datetime:
+            return await self.client.get_messages(
+                source, limit=limit, offset_date=start_datetime, reverse=True
+            )
+        return await self.client.get_messages(
+            source, limit=limit, min_id=cursor_id, reverse=True
+        )
 
     async def clear_progress(self) -> bool:
         """Delete the persisted forward progress file."""

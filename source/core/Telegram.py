@@ -1,4 +1,5 @@
 import os
+from types import SimpleNamespace
 
 from telethon import TelegramClient
 
@@ -109,6 +110,27 @@ class Telegram:
             timezone_name=config.get("timezone_name", "UTC"),
             dry_run=config.get("dry_run", False),
         )
+
+    async def forward_media_files(self, config):
+        """Forward all files/images (optionally keyword-filtered) from a
+        source chat's history, in the order they were originally posted.
+
+        Resumable and dry-run-aware via the same progress-tracking
+        machinery as `past_forward`, but scoped to media messages only.
+        """
+        forward_config_map = {
+            config["source_id"]: SimpleNamespace(
+                destinationID=config["destination_id"],
+                start_date=config.get("start_date"),
+                end_date=config.get("end_date"),
+                timezone_name=config.get("timezone_name", "UTC"),
+                dry_run=config.get("dry_run", False),
+                media_only=True,
+                keyword=config.get("keyword") or None,
+            )
+        }
+        forward = Forward(self.client, forward_config_map, self.queue)
+        await forward.history_handler()
 
     async def download_media(self, message):
         os.makedirs(MEDIA_FOLDER_PATH, exist_ok=True)

@@ -7,6 +7,7 @@ from source.dialog.DeleteDialog import DeleteDialog
 from source.dialog.FindUserDialog import FindUserDialog
 from source.dialog.ForwardDialog import ForwardDialog
 from source.dialog.KeywordForwardDialog import KeywordForwardDialog
+from source.dialog.MediaForwardDialog import MediaForwardDialog
 from source.menu.AccountSelector import AccountSelector
 from source.model.Credentials import Credentials
 from source.utils.Console import Terminal
@@ -21,6 +22,7 @@ class MainMenu:
         self.delete_dialog = DeleteDialog()
         self.find_user_dialog = FindUserDialog()
         self.keyword_forward_dialog = KeywordForwardDialog()
+        self.media_forward_dialog = MediaForwardDialog()
         self._status_task = None
         self.status = "Idle"
 
@@ -53,10 +55,15 @@ class MainMenu:
                 "value": "7",
                 "handler": self.keyword_forward,
             },
-            {"name": "Switch Account", "value": "8", "handler": self.switch_account},
+            {
+                "name": "Forward Media Files (Files/Images)",
+                "value": "8",
+                "handler": self.media_forward,
+            },
+            {"name": "Switch Account", "value": "9", "handler": self.switch_account},
             {
                 "name": "Clear Forward Progress Cache",
-                "value": "9",
+                "value": "10",
                 "handler": self.clear_forward_progress,
             },
             {"name": "Exit", "value": "0", "handler": None},
@@ -171,6 +178,16 @@ class MainMenu:
 
         self.status = "Keyword forwarding..."
         await self.telegram.forward_by_keyword(config)
+        self.status = "Idle"
+
+    async def media_forward(self):
+        config = await self.media_forward_dialog.get_config()
+        if not config:
+            self.console.print("[bold yellow]Media forward cancelled.[/bold yellow]")
+            return
+
+        self.status = "Forwarding media files..."
+        await self.telegram.forward_media_files(config)
         self.status = "Idle"
 
     async def clear_forward_progress(self):
