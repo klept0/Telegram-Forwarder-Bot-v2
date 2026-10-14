@@ -163,7 +163,7 @@ async def get_status():
     forwards = (
         ForwardConfig.read() if os.path.exists("resources/forwardConfig.json") else []
     )
-    active_forwards = len([f for f in forwards if getattr(f, "enabled", True)])
+    active_forwards = len([f for f in forwards if f.enabled])
 
     return StatusResponse(
         status=getattr(telegram_client, "status", "Idle"),
@@ -216,7 +216,7 @@ async def get_forwards():
                 "source_name": f.sourceName,
                 "destination_id": f.destinationID,
                 "destination_name": f.destinationName,
-                "enabled": getattr(f, "enabled", True),
+                "enabled": f.enabled,
             }
             for f in forwards
         ]
@@ -241,6 +241,7 @@ async def create_forward(config: ForwardConfigCreate):
             sourceName=config.source_name,
             destinationID=config.destination_id,
             destinationName=config.destination_name,
+            enabled=config.enabled,
         )
 
         # Add to existing and save
@@ -279,7 +280,7 @@ async def toggle_forward(source_id: int):
         existing = ForwardConfig.read()
         for config in existing:
             if config.sourceID == source_id:
-                config.enabled = not getattr(config, "enabled", True)
+                config.enabled = not config.enabled
                 break
         else:
             raise HTTPException(

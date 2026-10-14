@@ -61,4 +61,5 @@ class ForwardDialog(DateRangeDialog):
                 config.timezone_name = "UTC"
                 config.dry_run = False
 
-        return {item.sourceID: item for item in forward_config_list}
+        # Configs switched off from the web dashboard are skipped.
+        return {item.sourceID: item for item in forward_config_list if item.enabled}

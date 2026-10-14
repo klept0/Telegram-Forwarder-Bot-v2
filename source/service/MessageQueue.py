@@ -79,5 +79,9 @@ class MessageQueue:
         await self.queue.put(item)
         await self.start()  # ensure the worker is running
 
+    async def join(self):
+        """Wait until every queued task has finished (successfully or not)."""
+        await self.queue.join()
+
     def qsize(self):
         return self.queue.qsize()

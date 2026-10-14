@@ -17,6 +17,7 @@ class ForwardConfig:
         end_date=None,
         timezone_name="UTC",
         dry_run=False,
+        enabled=True,
         **kwargs,
     ):
         self.sourceID = sourceID
@@ -27,6 +28,7 @@ class ForwardConfig:
         self.end_date = end_date  # ISO format date string (YYYY-MM-DD)
         self.timezone_name = timezone_name or "UTC"
         self.dry_run = bool(dry_run)
+        self.enabled = bool(enabled)
 
     @staticmethod
     def write(forward_config_list):
@@ -59,6 +61,10 @@ class ForwardConfig:
             forwardConfig.sourceName = source.title
 
             destinationChoice = await dialog.list_chats_terminal(chats, "destination")
+            if destinationChoice == -1:
+                # "Stop" returns -1; indexing with it would silently pick the
+                # last chat as the destination.
+                break
             destination = chats[destinationChoice]
             forwardConfig.destinationID = destination.id
             forwardConfig.destinationName = destination.title
@@ -86,4 +92,5 @@ class ForwardConfig:
             if self.dry_run:
                 date_parts.append("dry-run")
             date_info = f" ({' '.join(date_parts)})"
-        return f'"{self.sourceName}" → "{self.destinationName}"{date_info}'
+        disabled = "" if self.enabled else " [disabled]"
+        return f'"{self.sourceName}" → "{self.destinationName}"{date_info}{disabled}'

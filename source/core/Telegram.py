@@ -68,7 +68,7 @@ class Telegram:
         async for dialog in self.client.iter_dialogs():
             if dialog.id == me.id or dialog.id in ignored_ids or not dialog.is_group:
                 continue
-            await self.message_service.delete_messages_from_dialog(dialog, me.id)
+            await self.message_service.delete_messages_from_dialog(dialog)
 
     async def find_user(self, config):
         wanted_user, message_limit = config

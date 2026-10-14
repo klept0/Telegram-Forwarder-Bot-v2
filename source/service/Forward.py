@@ -220,6 +220,7 @@ class Forward:
 
                     # Save progress every BATCH_SIZE messages
                     if current_total % BATCH_SIZE == 0:
+                        await self._drain_queue()
                         await self._save_progress(
                             source,
                             last_message_id,
@@ -235,6 +236,7 @@ class Forward:
                     break
 
             # Final progress save
+            await self._drain_queue()
             await self._save_progress(
                 source, last_message_id, start_date, end_date, media_only, keyword
             )
@@ -252,6 +254,17 @@ class Forward:
                 await status_task
             except asyncio.CancelledError:
                 pass
+
+    async def _drain_queue(self) -> None:
+        """Wait for queued sends to finish before persisting progress.
+
+        `_forward_message` only enqueues, so saving right after it would
+        record messages as forwarded while they're still waiting in the
+        queue — an interrupted run would then resume past them and they'd
+        never be sent.
+        """
+        if self.queue:
+            await self.queue.join()
 
     async def _periodic_status_update(self) -> None:
         """Periodically display queue status during forwarding operations."""
