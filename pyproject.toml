@@ -29,7 +29,7 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = [
-    "telethon>=1.39.0",
+    "telethon>=1.40.0",
     "rich>=13.7.0",
     "inquirerpy>=0.3.4",
     "python-dotenv>=1.0.0",

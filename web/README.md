@@ -77,8 +77,8 @@ reuses that session.
 
 ### Control
 
-- `POST /api/start-forwarding` - Start live message forwarding
-- `POST /api/stop-forwarding` - Stop live message forwarding
+- `POST /api/start-forwarding` - Start live forwarding for every enabled configuration (`400` if none are enabled, `409` if already running). Configs are read at start; stop and start again after changing them.
+- `POST /api/stop-forwarding` - Stop live forwarding (`409` if not running)
 
 ### Keyword Forwarding
 

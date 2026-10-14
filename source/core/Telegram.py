@@ -32,6 +32,7 @@ class Telegram:
         )
 
         self.status = "Idle"
+        self._live_forward: Forward | None = None
 
     @classmethod
     async def create(cls, credentials):
@@ -72,25 +73,61 @@ class Telegram:
             await self.message_service.delete_messages_from_dialog(dialog)
 
     async def find_user(self, config):
+        """Print the wanted user's recent messages from every group/channel,
+        scanning the latest `message_limit` messages of each."""
         wanted_user, message_limit = config
         if not wanted_user:
-            return
+            return 0
         me = await self.client.get_me()
+        found = 0
         async for dialog in self.client.iter_dialogs():
             chat = dialog.entity
             try:
                 if chat.id == me.id or isinstance(chat, type(me)):
                     continue
-                await self.message_service.process_user_messages(
+                messages = await self.message_service.find_user_messages(
                     chat, wanted_user, message_limit
                 )
+                for message in messages:
+                    self.chat_service.print_chat_info(chat, message)
+                found += len(messages)
             except Exception as e:
                 self.console.print(f"[bold red]Error processing dialog:[/bold red] {e}")
+        self.console.print(
+            f"[bold green]Found {found} message(s) from {wanted_user.title}[/bold green]"
+        )
+        return found
+
+    def start_live_forwarding(self, forward_config) -> bool:
+        """Begin forwarding new messages for `forward_config` (source ID →
+        config). Returns False if live forwarding is already running."""
+        if self._live_forward:
+            return False
+        self._live_forward = Forward(self.client, forward_config, self.queue)
+        self._live_forward.add_events()
+        self.status = "Live forwarding"
+        return True
+
+    def stop_live_forwarding(self) -> bool:
+        """Returns False if live forwarding wasn't running."""
+        if not self._live_forward:
+            return False
+        self._live_forward.remove_events()
+        self._live_forward = None
+        self.status = "Idle"
+        return True
+
+    @property
+    def is_live_forwarding(self) -> bool:
+        return self._live_forward is not None
 
     async def start_forward_live(self, forward_config):
-        forward = Forward(self.client, forward_config, self.queue)
-        forward.add_events()
-        await self.client.run_until_disconnected()
+        """CLI entry point: forward live until disconnected (Ctrl+C)."""
+        self.start_live_forwarding(forward_config)
+        try:
+            await self.client.run_until_disconnected()
+        finally:
+            self.stop_live_forwarding()
 
     async def watch_phrase(self, config):
         """Append new messages in a chat that contain a phrase to a file,

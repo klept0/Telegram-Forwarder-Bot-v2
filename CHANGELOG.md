@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Replies lost their threading when forwarded.** `forward_messages` can't set a reply target, so every forwarded reply arrived as a standalone message, even though `history.json` recorded where each parent went. Replies are now forwarded with Telegram's `reply_to` pointing at the parent's copy, keeping the "Forwarded from" header, in live, past, and media forwarding. The reply target is looked up when the message is actually sent, not when it's queued, so a parent forwarded just before its reply is found. Replies to messages that weren't forwarded are forwarded normally.
+- **Albums were split up by Past Forward and Forward Media Files.** History forwarding sent each photo/video of an album as a separate message. Consecutive messages sharing an album (`grouped_id`) are now forwarded together, including albums that straddle a fetch-chunk boundary. Live forwarding already kept albums intact.
+- **The web dashboard's Start/Stop Forwarding buttons did nothing.** `POST /api/start-forwarding` and `/api/stop-forwarding` returned success without acting. They now start live forwarding for every enabled configuration and stop it again; `/api/status` reports `Live forwarding` while it runs. Start returns `400` when nothing is enabled and `409` if already running; stop returns `409` if not running. The dashboard shows these errors instead of a blank alert.
+- **Find User Messages found messages but never showed them.** Matches were handed to an empty placeholder. Each match is now printed with its chat, date, text, and link, followed by a total.
+
+### Changed
+
+- Minimum Telethon version raised from 1.39 to **1.40**, the first release whose forward request supports `reply_to` (`requirements.txt`: `telethon~=1.40`; `pyproject.toml`: `telethon>=1.40.0`).
+
 ## [2.5.0] - 2026-10-14
 
 ### Added

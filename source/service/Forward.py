@@ -23,7 +23,9 @@ class Forward:
         self.forward_config_map = forward_config_map
         self.queue = queue
         self.history = HistoryService()
-        self.message_forward = MessageForwardService(client, queue=self.queue)
+        self.message_forward = MessageForwardService(
+            client, queue=self.queue, reply_resolver=self._handle_reply
+        )
 
     def add_events(self) -> None:
         source_chats = list(self.forward_config_map.keys())
@@ -34,6 +36,11 @@ class Forward:
             self.album_handler, events.Album(chats=source_chats)
         )
 
+    def remove_events(self) -> None:
+        """Stop live forwarding by unregistering the handlers from add_events."""
+        self.client.remove_event_handler(self.message_handler)
+        self.client.remove_event_handler(self.album_handler)
+
     async def message_handler(self, event: events.NewMessage.Event) -> None:
         try:
             if event.grouped_id:
@@ -41,8 +48,7 @@ class Forward:
             destination_id = self._get_destination_id(event.chat_id)
             if not destination_id:
                 return
-            reply_message = await self._handle_reply(event.message, destination_id)
-            await self._forward_message(destination_id, event.message, reply_message)
+            await self._forward_message(destination_id, event.message)
         except Exception as e:
             console.print(f"[bold red]Error handling message:[/bold red] {e}")
 
@@ -51,8 +57,7 @@ class Forward:
             destination_id = self._get_destination_id(event.chat_id)
             if not destination_id:
                 return
-            reply_message = await self._get_album_reply(event.messages, destination_id)
-            await self._forward_album(destination_id, event, reply_message)
+            await self._forward_album(destination_id, event.messages)
         except Exception as e:
             console.print(f"[bold red]Error handling album:[/bold red] {e}")
 
@@ -166,6 +171,8 @@ class Forward:
         processed_count = 0
         cursor_id = last_message_id
         reached_end = False
+        # An album may straddle a chunk boundary, so this carries across chunks.
+        album: list[Message] = []
 
         # Start background status updater for queue monitoring
         status_task = asyncio.create_task(self._periodic_status_update())
@@ -205,17 +212,20 @@ class Forward:
                         end="\r",
                     )
 
-                    try:
-                        reply_message = await self._handle_reply(
-                            message, destination_id
+                    # Album items share a grouped_id and arrive consecutively;
+                    # collect them so the album is forwarded as one unit
+                    # instead of as separate messages.
+                    grouped_id = message.grouped_id
+                    if album and album[-1].grouped_id != grouped_id:
+                        last_message_id = await self._send_history_unit(
+                            destination_id, album, last_message_id
                         )
-                        await self._forward_message(
-                            destination_id, message, reply_message
-                        )
-                        last_message_id = max(last_message_id, message.id)
-                    except Exception as e:
-                        console.print(
-                            f"[bold red]Error forwarding message {message.id}: {e}[/bold red]"
+                        album = []
+                    if grouped_id:
+                        album.append(message)
+                    else:
+                        last_message_id = await self._send_history_unit(
+                            destination_id, [message], last_message_id
                         )
 
                     # Save progress every BATCH_SIZE messages
@@ -234,6 +244,11 @@ class Forward:
 
                 if len(chunk_messages) < CHUNK_SIZE:
                     break
+
+            if album:
+                last_message_id = await self._send_history_unit(
+                    destination_id, album, last_message_id
+                )
 
             # Final progress save
             await self._drain_queue()
@@ -254,6 +269,22 @@ class Forward:
                 await status_task
             except asyncio.CancelledError:
                 pass
+
+    async def _send_history_unit(
+        self, destination_id: int, messages: list[Message], last_message_id: int
+    ) -> int:
+        """Forward one message or one album; return the new resume point."""
+        try:
+            if len(messages) == 1:
+                await self._forward_message(destination_id, messages[0])
+            else:
+                await self._forward_album(destination_id, messages)
+            return max(last_message_id, messages[-1].id)
+        except Exception as e:
+            console.print(
+                f"[bold red]Error forwarding message {messages[0].id}: {e}[/bold red]"
+            )
+            return last_message_id
 
     async def _drain_queue(self) -> None:
         """Wait for queued sends to finish before persisting progress.
@@ -536,15 +567,6 @@ class Forward:
             message.chat_id, message.reply_to_msg_id, destination_id
         )
 
-    async def _get_album_reply(
-        self, messages: list[Message], destination_id: int
-    ) -> int | None:
-        for message in messages:
-            reply = await self._handle_reply(message, destination_id)
-            if reply is not None:
-                return reply
-        return None
-
     async def _forward_message(
         self, destination_id: int, message: Message, reply_to: int | None = None
     ) -> None:
@@ -558,17 +580,17 @@ class Forward:
     async def _forward_album(
         self,
         destination_id: int,
-        event: events.Album.Event,
+        messages: list[Message],
         reply_to: int | None = None,
     ) -> None:
         try:
             await self.message_forward.forward_album(
                 destination_id,
-                event.messages,
-                event.text,
+                messages,
+                None,
                 reply_to,
-                on_sent=lambda _source_messages, sent_messages: self._on_album_sent(
-                    event, sent_messages, destination_id
+                on_sent=lambda source_messages, sent_messages: self._on_album_sent(
+                    source_messages, sent_messages, destination_id
                 ),
             )
         except Exception as e:
@@ -583,12 +605,14 @@ class Forward:
         else:
             self._update_history(source_message, sent_message)
 
-    def _on_album_sent(self, event, sent_messages, destination_id: int) -> None:
+    def _on_album_sent(
+        self, source_messages: list[Message], sent_messages, destination_id: int
+    ) -> None:
         if not sent_messages:
             return
         if not isinstance(sent_messages, list):
             sent_messages = [sent_messages]
-        self._update_album_history(event, sent_messages, destination_id)
+        self._update_album_history(source_messages, sent_messages, destination_id)
 
     def _update_history(self, source_message: Message, sent_message: Message) -> None:
         self.history.add_mapping(
@@ -600,11 +624,14 @@ class Forward:
 
     def _update_album_history(
         self,
-        event: events.Album.Event,
+        source_messages: list[Message],
         sent_messages: list[Message],
         destination_id: int,
     ) -> None:
-        for source_message, dest_message in zip(event.messages, sent_messages):
+        for source_message, dest_message in zip(source_messages, sent_messages):
             self.history.add_mapping(
-                event.chat_id, source_message.id, destination_id, dest_message.id
+                source_message.chat_id,
+                source_message.id,
+                destination_id,
+                dest_message.id,
             )

@@ -15,6 +15,7 @@ This project is based on the [original Telegram Forwarder Bot](https://github.co
 
 - 🚀 **Async/Await**: Fully asynchronous architecture for high performance
 - 🔄 **Live Forwarding**: Real-time message forwarding with event handlers
+- 🧵 **Threads & Albums Preserved**: Replies stay replies to the forwarded parent, and albums are forwarded as albums
 - 📚 **History Forwarding**: Bulk message forwarding from chat history with date filtering
 - 📅 **Month Filtering**: Forward messages from specific months or date ranges
 - 🌍 **Timezone-Aware Date Filters**: Apply date windows in UTC, local, or custom IANA timezone
@@ -236,7 +237,7 @@ WEB_PORT=8000
 1. **Add/Update Credentials** - Configure Telegram API credentials
 2. **List Chats** - Display all available chats
 3. **Delete My Messages** - Remove your messages from chats
-4. **Find User Messages** - Search for messages from specific users
+4. **Find User Messages** - Print a user's recent messages from every group/channel (chat, date, text, link) and the total found
 5. **Live Forward Messages** - Start real-time message forwarding
 6. **Past Forward Messages** - Forward historical messages
 7. **Keyword Search + Forward** - Search by keyword and forward matching messages
@@ -260,6 +261,14 @@ Configure message forwarding by specifying:
 - **Timezone**: Choose UTC, local system timezone, or custom IANA timezone
 - **Dry-Run Preview**: Optional count-only run without sending messages
 - **Enabled**: Whether forwarding is active
+
+Replies and albums are preserved in live, past, and media forwarding:
+
+- **Replies**: if the message being replied to was forwarded earlier, the
+  reply is forwarded as a reply to that copy, still showing "Forwarded from".
+  If the original wasn't forwarded (e.g. it's outside the date range), the
+  reply is forwarded normally.
+- **Albums**: photos/videos sent together are forwarded together as one album.
 
 When forwarding historical messages, the bot displays real-time progress indicators showing:
 
@@ -360,8 +369,8 @@ curl -H "X-API-Key: $API_KEY" http://localhost:8000/api/status
 
 #### Control Operations
 
-- `POST /api/start-forwarding` - Start live message forwarding
-- `POST /api/stop-forwarding` - Stop live message forwarding
+- `POST /api/start-forwarding` - Start live forwarding for every enabled configuration (`400` if none are enabled, `409` if already running). Configs are read at start; stop and start again after changing them.
+- `POST /api/stop-forwarding` - Stop live forwarding (`409` if not running)
 
 #### Keyword Forwarding
 
