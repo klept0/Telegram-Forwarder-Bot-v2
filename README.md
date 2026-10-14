@@ -1,6 +1,6 @@
 # Telegram Forwarder Bot v2
 
-[![Python Version](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![Python Version](https://img.shields.io/python/required-version-toml?tomlFilePath=https%3A%2F%2Fraw.githubusercontent.com%2Fklept0%2FTelegram-Forwarder-Bot-v2%2Fmain%2Fpyproject.toml&label=python&color=blue)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Release](https://img.shields.io/github/v/release/klept0/Telegram-Forwarder-Bot-v2?color=0A66C2)](https://github.com/klept0/Telegram-Forwarder-Bot-v2/releases/latest)
 [![CI](https://github.com/klept0/Telegram-Forwarder-Bot-v2/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/klept0/Telegram-Forwarder-Bot-v2/actions/workflows/ci.yml)

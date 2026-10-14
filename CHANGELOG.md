@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The README's Python badge now reads `requires-python` from `pyproject.toml` on `main`, so it updates automatically when the minimum Python version changes, like the release badge already does.
+
 ## [2.5.1] - 2026-10-14
 
 ### Fixed
