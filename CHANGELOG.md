@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.4.0] - 2026-10-13
+
 ### Added
 
 - New `Forward Media Files (Files/Images)` menu option (`source/dialog/MediaForwardDialog.py`, `Telegram.forward_media_files`) to forward only messages that carry a file/photo/video from a source chat's history, optionally filtered by keyword, in the order they were originally posted. Shares the same resumable progress tracking, date-range selection, and dry-run flow as `Past Forward Messages`.
