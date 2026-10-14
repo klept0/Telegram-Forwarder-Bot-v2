@@ -8,6 +8,7 @@ from source.dialog.FindUserDialog import FindUserDialog
 from source.dialog.ForwardDialog import ForwardDialog
 from source.dialog.KeywordForwardDialog import KeywordForwardDialog
 from source.dialog.MediaForwardDialog import MediaForwardDialog
+from source.dialog.PhraseWatchDialog import PhraseWatchDialog
 from source.menu.AccountSelector import AccountSelector
 from source.model.Credentials import Credentials
 from source.utils.Console import Terminal
@@ -23,6 +24,7 @@ class MainMenu:
         self.find_user_dialog = FindUserDialog()
         self.keyword_forward_dialog = KeywordForwardDialog()
         self.media_forward_dialog = MediaForwardDialog()
+        self.phrase_watch_dialog = PhraseWatchDialog()
         self._status_task = None
         self.status = "Idle"
 
@@ -65,6 +67,11 @@ class MainMenu:
                 "name": "Clear Forward Progress Cache",
                 "value": "10",
                 "handler": self.clear_forward_progress,
+            },
+            {
+                "name": "Watch Chat for Phrase → File",
+                "value": "11",
+                "handler": self.watch_phrase,
             },
             {"name": "Exit", "value": "0", "handler": None},
         ]
@@ -188,6 +195,16 @@ class MainMenu:
 
         self.status = "Forwarding media files..."
         await self.telegram.forward_media_files(config)
+        self.status = "Idle"
+
+    async def watch_phrase(self):
+        config = await self.phrase_watch_dialog.get_config()
+        if not config:
+            self.console.print("[bold yellow]Phrase watch cancelled.[/bold yellow]")
+            return
+
+        self.status = f'Watching for "{config["phrase"]}"'
+        await self.telegram.watch_phrase(config)
         self.status = "Idle"
 
     async def clear_forward_progress(self):

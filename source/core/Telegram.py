@@ -8,6 +8,7 @@ from source.service.ChatService import ChatService
 from source.service.Forward import Forward
 from source.service.MessageQueue import MessageQueue
 from source.service.MessageService import MessageService
+from source.service.PhraseWatcher import PhraseWatcher
 from source.utils.Console import Terminal
 from source.utils.Constants import MEDIA_FOLDER_PATH, SESSION_PREFIX_PATH
 
@@ -89,6 +90,18 @@ class Telegram:
     async def start_forward_live(self, forward_config):
         forward = Forward(self.client, forward_config, self.queue)
         forward.add_events()
+        await self.client.run_until_disconnected()
+
+    async def watch_phrase(self, config):
+        """Append new messages in a chat that contain a phrase to a file,
+        until disconnected (Ctrl+C)."""
+        watcher = PhraseWatcher(self.client, **config)
+        watcher.add_events()
+        self.console.print(
+            f"[bold blue]Watching {watcher.chat_title} for "
+            f'"{watcher.phrase}" → {watcher.output_path} '
+            "(Ctrl+C to stop)[/bold blue]"
+        )
         await self.client.run_until_disconnected()
 
     async def past_forward(self, forward_config):

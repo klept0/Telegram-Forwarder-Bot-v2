@@ -20,6 +20,7 @@ This project is based on the [original Telegram Forwarder Bot](https://github.co
 - 🌍 **Timezone-Aware Date Filters**: Apply date windows in UTC, local, or custom IANA timezone
 - 🔎 **Dry-Run Preview**: Count matching historical messages before forwarding
 - 📊 **Progress Tracking**: Real-time progress indicators showing completion percentage
+- 📝 **Phrase Watch → File**: Watch a chat live and append every message containing a phrase to a Markdown file
 - 🔍 **Keyword Search Forwarding**: Search source chat history by an optional keyword and forward matching (or all) messages, resumable over a date range
 - 👥 **Multi-Account Support**: Switch between multiple Telegram accounts
 - 🎯 **Rate Limiting**: Built-in rate limiting to respect Telegram's API limits
@@ -242,7 +243,8 @@ WEB_PORT=8000
 8. **Forward Media Files (Files/Images)** - Forward all files/images (optionally keyword-filtered) from a date range, in the order they were posted
 9. **Switch Account** - Change between configured accounts
 10. **Clear Forward Progress Cache** - Reset saved resume state for historical forwarding
-11. **Exit** - Close the application
+11. **Watch Chat for Phrase → File** - Watch a chat live and append messages containing a phrase to a Markdown file
+12. **Exit** - Close the application
 
 ### Forward Configuration
 
@@ -300,6 +302,36 @@ date range, and keyword/media combination — whether the previous run
 finished or was interrupted — it picks up right after the last file it
 already forwarded instead of sending duplicates. To force a full re-scan
 of a range you've already run, use `Clear Forward Progress Cache` first.
+
+### Watch Chat for Phrase → File
+
+Use the `Watch Chat for Phrase → File` menu option to keep a running log of
+every new message in one chat that contains a phrase:
+
+- Select the chat to watch (run `List Chats` first so it appears)
+- Enter the phrase — matching is case-insensitive and finds the phrase
+  anywhere in the message text or caption
+- Choose the output file (defaults to `logs/phrase_<chat_name>.md`)
+
+The bot then listens live, like `Live Forward Messages`, until you press
+Ctrl+C. Each match is appended as a Markdown entry with its UTC timestamp,
+the sender (in groups), a link back to the message, and the message text as a
+quote. Re-running with the same file keeps appending to it. Markdown is plain
+text, so you can name the file `.txt` if you prefer. Only messages that arrive
+while the watch is running are logged; earlier history isn't scanned.
+
+Example entry:
+
+```markdown
+## 2026-10-13 14:05:09 UTC
+
+[Open in Telegram](https://t.me/c/1234/2)
+
+> ALERT: server down in eu-1
+```
+
+In Docker, `logs/` is already mounted as a volume, so the file is kept on the
+host.
 
 ### Web API
 
