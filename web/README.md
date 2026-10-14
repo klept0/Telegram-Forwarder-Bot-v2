@@ -43,18 +43,15 @@ reuses that session.
    python web/app.py
    ```
 
-   Or from the web directory:
-
-   ```bash
-   cd web
-   python app.py
-   ```
-
    Or using module syntax:
 
    ```bash
    python -m web.app
    ```
+
+   Run it from the project root, not from `web/`: data paths like
+   `resources/` are relative to the current directory, so starting it inside
+   `web/` would look for credentials in `web/resources/` and find none.
 
 3. Open your browser to `http://localhost:8000`
 
@@ -108,13 +105,10 @@ web/
 The web interface is included in the Docker setup. To run with Docker:
 
 ```bash
-docker-compose up --build web
+docker compose up -d --build web
 ```
 
-To run both bot + web together:
-
-```bash
-docker-compose up --build telegram-forwarder web
-```
-
-This starts the web interface on port 8000 with shared project resources.
+The `web` service depends on `telegram-forwarder`, so this starts both. The
+dashboard is published on `127.0.0.1:8000` and shares `resources/` and
+`sessions/` with the bot. Don't run live forwarding from the bot menu and the
+dashboard at the same time, because they share one Telegram session.
