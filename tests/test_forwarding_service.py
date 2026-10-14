@@ -216,6 +216,7 @@ async def test_forward_chat_history_forwards_in_ascending_order_and_stops_at_end
     messages past the configured end date rather than continuing to page."""
     client = AsyncMock()
     queue = MagicMock()
+    queue.join = AsyncMock()
     config = MagicMock(
         destinationID=-100222,
         start_date="2026-03-01",

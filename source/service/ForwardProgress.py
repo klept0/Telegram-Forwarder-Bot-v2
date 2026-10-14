@@ -7,6 +7,7 @@ import os
 from datetime import datetime
 
 from source.utils.Constants import FORWARD_PROGRESS_FILE_PATH
+from source.utils.FileUtils import write_json_atomic
 
 
 class ForwardProgress:
@@ -113,8 +114,7 @@ class ForwardProgress:
         }
 
         try:
-            with open(progress_file, "w", encoding="utf-8") as f:
-                json.dump(progress_data, f, indent=2)
+            write_json_atomic(progress_file, progress_data)
             return True
         except OSError:
             return False
@@ -145,8 +145,7 @@ class ForwardProgress:
             progress_data[progress_key]["completed_at"] = datetime.now().isoformat()
 
             try:
-                with open(progress_file, "w", encoding="utf-8") as f:
-                    json.dump(progress_data, f, indent=2)
+                write_json_atomic(progress_file, progress_data)
             except OSError:
                 pass  # Ignore save errors for completion marking
 

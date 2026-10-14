@@ -1,7 +1,9 @@
 from datetime import datetime, timezone
 
+from telethon.errors import FloodWaitError
+
 from source.service.ForwardProgress import ForwardProgress
-from source.utils.Constants import DEFAULT_BATCH_SIZE
+from source.utils.Constants import DEFAULT_BATCH_SIZE, DELETE_BATCH_SIZE
 from source.utils.DateUtils import DateUtils
 
 
@@ -11,19 +13,30 @@ class MessageService:
         self.console = console
         self.queue = queue
 
-    async def delete_messages_from_dialog(self, dialog, my_id):
-        async for message in self.client.iter_messages(dialog.id):
-            if message.from_id == my_id:
-                if self.queue:
-                    await self.queue.put((self._delete_message, (message,)))
-                else:
-                    await self._delete_message(message)
+    async def delete_messages_from_dialog(self, dialog):
+        """Delete every message the current user sent in `dialog`.
 
-    async def _delete_message(self, message):
+        Filters server-side with `from_user="me"`; comparing `message.from_id`
+        to an int never matches because Telethon returns a Peer object there.
+        """
+        message_ids = [
+            message.id
+            async for message in self.client.iter_messages(dialog.id, from_user="me")
+        ]
+        for start in range(0, len(message_ids), DELETE_BATCH_SIZE):
+            batch = message_ids[start : start + DELETE_BATCH_SIZE]
+            if self.queue:
+                await self.queue.put((self._delete_messages, (dialog.id, batch)))
+            else:
+                await self._delete_messages(dialog.id, batch)
+
+    async def _delete_messages(self, chat_id, message_ids):
         try:
-            await self.client.delete_messages(message.chat_id, message.id)
+            await self.client.delete_messages(chat_id, message_ids)
+        except FloodWaitError:
+            raise  # let the queue wait it out and retry
         except Exception as e:
-            self.console.print(f"[bold red]Error deleting message:[/bold red] {e}")
+            self.console.print(f"[bold red]Error deleting messages:[/bold red] {e}")
 
     async def process_user_messages(self, chat, user, limit=None):
         async for message in self.client.iter_messages(chat.id, limit=limit):
@@ -105,10 +118,13 @@ class MessageService:
             last_forwarded_id = max(last_forwarded_id, message.id)
 
             if has_date_range and i % DEFAULT_BATCH_SIZE == 0:
+                # Only record progress for sends that have actually happened.
+                await self._drain_queue()
                 ForwardProgress.save(
                     source_id, last_forwarded_id, start_date, end_date, keyword=keyword
                 )
 
+        await self._drain_queue()
         if has_date_range:
             if matches:
                 ForwardProgress.save(
@@ -122,6 +138,10 @@ class MessageService:
             f"[bold green]Forwarded {sent_count} messages{keyword_label}[/bold green]"
         )
         return sent_count
+
+    async def _drain_queue(self):
+        if self.queue:
+            await self.queue.join()
 
     async def _forward_message(self, destination_id, message, reply_to=None):
         _ = reply_to

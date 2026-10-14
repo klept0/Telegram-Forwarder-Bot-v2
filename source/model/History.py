@@ -1,6 +1,7 @@
 import json
 
 from source.utils.Constants import HISTORY_FILE_PATH
+from source.utils.FileUtils import write_json_atomic
 
 
 class History:
@@ -28,8 +29,7 @@ class History:
 
     def save_data(self, data):
         json_data = self.convert_to_json_format(data)
-        with open(HISTORY_FILE_PATH, "w") as file:
-            json.dump(json_data, file, indent=4)
+        write_json_atomic(HISTORY_FILE_PATH, json_data, indent=4)
 
     def load_data(self):
         try:

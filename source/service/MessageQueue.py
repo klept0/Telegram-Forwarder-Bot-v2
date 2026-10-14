@@ -1,6 +1,9 @@
 import asyncio
 
+from telethon.errors import FloodWaitError
+
 from source.utils.Console import Terminal
+from source.utils.Constants import MAX_FLOOD_WAIT_RETRIES
 
 console = Terminal.console
 
@@ -45,16 +48,39 @@ class MessageQueue:
                 func, args = await self.queue.get()
                 got_item = True
                 self.current_task = self._format_task_name(args)
-                await func(*args)
+                await self._run_with_flood_retry(func, args)
                 await asyncio.sleep(self.delay)  # rate limit
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                console.print(f"[bold red]Queue Worker Error:[/bold red] {e}")
+                console.print(
+                    f"[bold red]Queue Worker Error ({self.current_task}):[/bold red] {e}"
+                )
             finally:
                 if got_item:
                     self.queue.task_done()
                 self.current_task = None
+
+    async def _run_with_flood_retry(self, func, args):
+        """Run a queued task, waiting out Telegram rate limits instead of
+        dropping the task.
+
+        Telethon already sleeps through short flood waits on its own
+        (`flood_sleep_threshold`, 60s by default) and raises FloodWaitError
+        for longer ones; without this the message would just be logged and
+        lost.
+        """
+        for attempt in range(MAX_FLOOD_WAIT_RETRIES + 1):
+            try:
+                return await func(*args)
+            except FloodWaitError as e:
+                if attempt == MAX_FLOOD_WAIT_RETRIES:
+                    raise
+                console.print(
+                    f"[bold yellow]Rate limited by Telegram; waiting {e.seconds}s "
+                    f"before retrying {self.current_task}[/bold yellow]"
+                )
+                await asyncio.sleep(e.seconds + 1)
 
     def _format_task_name(self, args):
         """Build a compact human-readable task label for queue status output."""
@@ -78,6 +104,10 @@ class MessageQueue:
         """
         await self.queue.put(item)
         await self.start()  # ensure the worker is running
+
+    async def join(self):
+        """Wait until every queued task has finished (successfully or not)."""
+        await self.queue.join()
 
     def qsize(self):
         return self.queue.qsize()

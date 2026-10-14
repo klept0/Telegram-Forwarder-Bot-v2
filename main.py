@@ -2,7 +2,6 @@ import asyncio
 import os
 import signal
 import sys
-from typing import Optional
 
 from source.core.Bot import Bot
 from source.utils.Console import Terminal
@@ -15,21 +14,14 @@ from source.utils.Constants import (
 console = Terminal.console
 
 
-async def shutdown(
-    loop: asyncio.AbstractEventLoop, signal: Optional[signal.Signals] = None
-) -> None:
-    if signal:
-        console.print(f"[bold red]Received exit signal {signal.name}...[/bold red]")
-    tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
-    console.print(f"[bold yellow]Cancelling {len(tasks)} tasks...[/bold yellow]")
-    [task.cancel() for task in tasks]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
-    for result in results:
-        if isinstance(result, Exception) and not isinstance(
-            result, asyncio.CancelledError
-        ):
-            console.print(f"[bold red]Task raised during shutdown:[/bold red] {result}")
-    loop.stop()
+async def run() -> None:
+    # SIGINT already cancels this task under asyncio.run(); make SIGTERM
+    # (e.g. `docker stop`) do the same so the menu's cleanup (disconnecting
+    # the Telegram client) still runs instead of the process being killed.
+    task = asyncio.current_task()
+    if sys.platform != "win32" and task is not None:
+        asyncio.get_running_loop().add_signal_handler(signal.SIGTERM, task.cancel)
+    await Bot().start()
 
 
 def main() -> None:
@@ -37,25 +29,12 @@ def main() -> None:
     os.makedirs(MEDIA_FOLDER_PATH, exist_ok=True)
     os.makedirs(SESSION_FOLDER_PATH, exist_ok=True)
 
-    bot = Bot()
-    loop = None
     try:
-        # Modern 3.10+ event loop creation
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-
-        if sys.platform != "win32":
-            for sig in (signal.SIGINT, signal.SIGTERM):
-                loop.add_signal_handler(
-                    sig, lambda s=sig: asyncio.create_task(shutdown(loop, signal=s))
-                )
-
-        loop.run_until_complete(bot.start())
+        asyncio.run(run())
+    except (KeyboardInterrupt, asyncio.CancelledError):
+        console.print("[bold yellow]Exiting...[/bold yellow]")
     except Exception as e:
         console.print(f"[bold red]Error:[/bold red] {e}")
-    finally:
-        if loop is not None:
-            loop.close()
 
 
 if __name__ == "__main__":
