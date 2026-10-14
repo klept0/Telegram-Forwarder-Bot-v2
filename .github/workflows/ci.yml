@@ -113,6 +113,11 @@ jobs:
     needs: [test, security]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    permissions:
+      contents: write  # create the version tag and GitHub release
+    concurrency:
+      group: release
+      cancel-in-progress: false
 
     steps:
       - uses: actions/checkout@v4
@@ -138,3 +143,37 @@ jobs:
         with:
           name: python-package
           path: dist/
+
+      # A release is published whenever pyproject.toml's version has no
+      # matching v<version> tag yet, i.e. on the first main push after a
+      # version bump. Every other push to main skips these steps.
+      - name: Check for new version
+        id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if gh release view "v$version" > /dev/null 2>&1 || git ls-remote --exit-code --tags origin "refs/tags/v$version" > /dev/null; then
+            echo "v$version already released; skipping."
+            echo "new=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "new=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create GitHub release
+        if: steps.version.outputs.new == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          if python .github/scripts/changelog_section.py "$VERSION" > release-notes.md; then
+            notes=(--notes-file release-notes.md)
+          else
+            echo "::warning::CHANGELOG.md has no [$VERSION] section; using generated notes."
+            notes=(--generate-notes)
+          fi
+          gh release create "v$VERSION" dist/* \
+            --target "$GITHUB_SHA" \
+            --title "v$VERSION" \
+            "${notes[@]}"

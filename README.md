@@ -483,6 +483,22 @@ make html  # output in docs/_build/html/
 - Explicit behavior delta when relevant (before vs after)
 - Release date and semantic version
 
+### Releasing
+
+Releases are published automatically. To cut one:
+
+1. Bump `version` in `pyproject.toml` (and keep `web/app.py` and
+   `docs/conf.py` in step).
+2. Move the `[Unreleased]` entries in `CHANGELOG.md` under a new
+   `## [X.Y.Z] - YYYY-MM-DD` heading.
+3. Merge to `main`.
+
+When CI passes on `main` and no `vX.Y.Z` tag exists yet, the `release` job
+tags that commit, publishes a GitHub release whose notes are the matching
+CHANGELOG section, and attaches the built package (`dist/`). If the
+CHANGELOG has no section for the version, GitHub's generated notes are used
+instead. Pushes that don't change the version publish nothing.
+
 ## Security
 
 - Never commit API credentials or sensitive data (`resources/credentials.json` and `sessions/` are gitignored)
