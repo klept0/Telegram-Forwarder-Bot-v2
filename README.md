@@ -8,337 +8,141 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-009688.svg?logo=fastapi&logoColor=white)](web/app.py)
 [![Telethon](https://img.shields.io/badge/Telethon-1.40+-2CA5E0.svg)](https://github.com/LonamiWebs/Telethon)
 
-An asynchronous Telegram message forwarding bot with a modern Python architecture, built with Telethon and Rich.
+Forward Telegram messages between chats from your own account, either live as
+they arrive or from a chat's history. Use it from an interactive terminal menu
+or a small web dashboard. Built with Telethon and Rich.
 
 This project is based on the [original Telegram Forwarder Bot](https://github.com/MohammadShabib/Telegram-Forwarder-Bot) by Mohammad Shabib.
 
 ## Features
 
-- 🚀 **Async/Await**: Fully asynchronous architecture for high performance
-- 🔄 **Live Forwarding**: Real-time message forwarding with event handlers
-- 🧵 **Threads & Albums Preserved**: Replies stay replies to the forwarded parent, and albums are forwarded as albums
-- 📚 **History Forwarding**: Bulk message forwarding from chat history with date filtering
-- 📅 **Month Filtering**: Forward messages from specific months or date ranges
-- 🌍 **Timezone-Aware Date Filters**: Apply date windows in UTC, local, or custom IANA timezone
-- 🔎 **Dry-Run Preview**: Count matching historical messages before forwarding
-- 📊 **Progress Tracking**: Real-time progress indicators showing completion percentage
-- 📝 **Phrase Watch → File**: Watch a chat live and append every message containing a phrase to a Markdown file
-- 🔍 **Keyword Search Forwarding**: Search source chat history by an optional keyword and forward matching (or all) messages, resumable over a date range
-- 👥 **Multi-Account Support**: Switch between multiple Telegram accounts
-- 🎯 **Rate Limiting**: Sends are queued and paced, and Telegram flood waits are waited out and retried instead of dropping messages
-- 🎨 **Rich Console UI**: Beautiful terminal interface with Rich
-- 🌐 **Web Dashboard**: FastAPI-based web interface for remote management
-- 🔒 **Secure**: Credentials and sessions stay local (credentials file is owner-only), and the web API requires an API key
-- ✅ **Tested**: pytest suite, ruff, and mypy run in CI on Python 3.10–3.13
-- 🐳 **Docker Support**: Containerized deployment with Docker Compose
+- 🔄 **Live forwarding**: new messages are forwarded as they arrive, from any number of source chats
+- 📚 **History forwarding**: forward a chat's past messages oldest-first, filtered by month, several months, or a date range in any timezone
+- 🔍 **Keyword and media filters**: forward only messages matching a keyword, or only files, photos and videos
+- 🧵 **Threads and albums kept**: replies stay replies to the forwarded original, and albums arrive as albums
+- ⏯️ **Resumable, with dry runs**: interrupted runs pick up where they stopped without duplicates, and a dry run counts matches before anything is sent
+- 📝 **Phrase watch → file**: log every new message containing a phrase to a Markdown file
+- 🌐 **Web dashboard**: manage forwarding configurations and start or stop live forwarding from a browser, behind an API key
+- 👥 **Multiple accounts**, **Docker support**, and paced sending that waits out Telegram flood limits instead of dropping messages
 
-## Quick Start
+## Before you start
 
-### Prerequisites
+> [!WARNING]
+> This bot logs in as **your personal Telegram account** (not a bot account)
+> and acts on its behalf.
+>
+> - **Account limits:** Telegram may temporarily restrict accounts that
+>   forward large volumes quickly. The bot paces sends and waits out flood
+>   limits, but very large history runs are still at your own risk.
+> - **Protected chats:** messages from chats with *Restrict saving content*
+>   enabled can't be forwarded. Those sends fail and are skipped with an error.
+> - **One live job at a time:** Live Forward and Phrase Watch both run until
+>   you press Ctrl+C, so only one can run per bot instance. The bot and the web
+>   dashboard share one login session, so don't run live forwarding in both at
+>   once.
+> - **Your session file is your account:** anyone with `sessions/` can act as
+>   you. It's gitignored; keep it that way.
 
-- Python 3.10 or higher (for local installation)
-- A Telegram account with API credentials
-- Docker & Docker Compose (for containerized deployment)
+You'll need:
 
-### Installation Methods
+- Python 3.10 or newer, or Docker
+- A Telegram **API ID** and **API hash**:
+  1. Sign in at [my.telegram.org](https://my.telegram.org) with your phone number
+  2. Open **API development tools** and create an application
+  3. Copy the `api_id` and `api_hash`
 
-Choose one of the following installation methods:
+## Install
 
-#### Option 1: Local Installation (Recommended for Development)
-
-1. **Clone the repository:**
-
-   ```bash
-   git clone https://github.com/klept0/Telegram-Forwarder-Bot-v2.git
-   cd Telegram-Forwarder-Bot-v2
-   ```
-
-2. **Create virtual environment:**
-
-   ```bash
-   python -m venv .venv
-   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-   ```
-
-3. **Install dependencies:**
-
-   ```bash
-   pip install -e ".[dev]"
-   ```
-
-4. **Run the bot:**
-
-   ```bash
-   python main.py
-   ```
-
-   You'll be prompted for your Telegram API credentials on first run; they're
-   saved to `resources/credentials.json` for reuse (no `.env` file needed for
-   the CLI — that's only required if you also run the web dashboard, see
-   [Configuration](#configuration)).
-
-#### Option 2: Docker Installation (Recommended for Production)
-
-1. **Clone the repository:**
-
-   ```bash
-   git clone https://github.com/klept0/Telegram-Forwarder-Bot-v2.git
-   cd Telegram-Forwarder-Bot-v2
-   ```
-
-2. **Set up environment variables:**
-
-   ```bash
-   cp .env.example .env
-   # Edit .env and set API_KEY (required by the web service, see Configuration below)
-   ```
-
-3. **Authenticate once, interactively, before running detached:**
-
-   The `telegram-forwarder` container runs `python main.py`, which prompts
-   for your Telegram API credentials and login code on first use. Run it
-   attached the first time so you can answer the prompts:
-
-   ```bash
-   docker compose run --rm telegram-forwarder
-   ```
-
-   This saves a session under `./sessions` and credentials under
-   `./resources`, which are mounted as volumes — subsequent runs (including
-   the `web` service) reuse that session without prompting again.
-
-4. **Start in the background:**
-
-   ```bash
-   docker compose up -d --build
-   ```
-
-5. **Use the menu:** the bot is an interactive menu, so attach to it:
-
-   ```bash
-   docker attach telegram-forwarder-bot
-   ```
-
-   Press Enter if the menu doesn't redraw. Detach **without stopping it** with
-   `Ctrl+P` then `Ctrl+Q`. `Ctrl+C` while attached stops the container.
-
-6. **View logs:**
-
-   ```bash
-   docker compose logs -f telegram-forwarder
-   ```
-
-7. **Stop everything:**
-
-   ```bash
-   docker compose down
-   ```
-
-**Docker Notes:**
-
-- `resources/`, `sessions/`, `media/` and `logs/` are bind-mounted from the project folder, so settings, the login session, and phrase-watch files survive rebuilds
-- The web service's `API_KEY` is loaded from the `.env` file; `docker compose up` fails fast with a clear error if it isn't set
-- The bot and the web dashboard share one Telegram session. Don't run live forwarding from both at the same time
-- The bot runs as a non-root user for security
-- Older Docker installs use `docker-compose` (with a hyphen) instead of `docker compose`
-
-#### Option 3: Web Interface (FastAPI Dashboard)
-
-1. **Clone the repository:**
-
-   ```bash
-   git clone https://github.com/klept0/Telegram-Forwarder-Bot-v2.git
-   cd Telegram-Forwarder-Bot-v2
-   ```
-
-2. **Create virtual environment:**
-
-   ```bash
-   python -m venv .venv
-   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-   ```
-
-3. **Install dependencies with web extras:**
-
-   ```bash
-   pip install -e ".[web]"
-   ```
-
-4. **Authenticate an account first, via the CLI:**
-
-   The web dashboard never prompts for a Telegram login itself — it reuses
-   the session created by the CLI. Run `python main.py` once, answer the
-   credential/login prompts, then exit; this saves a session under
-   `./sessions` and credentials under `./resources`.
-
-5. **Set up environment variables:**
-
-   ```bash
-   cp .env.example .env
-   # Edit .env and set API_KEY (the dashboard refuses to serve API
-   # requests without it — see Configuration below)
-   ```
-
-6. **Run the web dashboard:**
-
-   ```bash
-   python web/app.py
-   ```
-
-   Or, equivalently:
-
-   ```bash
-   python -m web.app
-   ```
-
-   Always start it from the project root: data paths like `resources/` are
-   relative to the current directory.
-
-7. **Open your browser:**
-
-   Navigate to `http://localhost:8000` to access the web interface. The
-   page will prompt you once for the `API_KEY` value and remember it in
-   the browser's local storage for subsequent requests.
-
-**Web Interface Features:**
-
-- Real-time bot status monitoring
-- Forward configuration management
-- Chat browser and selection
-- REST API for programmatic access
-- Remote control of forwarding operations
-- Dark mode (follows system preference, toggle in the header)
-- Collapsible sections for long lists (Forwarding Configurations, Available Chats)
-
-## Configuration
-
-### Environment Variables
-
-Telegram account credentials are entered interactively on first run
-(`python main.py`) and stored in `resources/credentials.json` — they are
-not read from environment variables.
-
-The web dashboard (`web/app.py`) does use environment variables. Create a
-`.env` file in the project root (see `.env.example`):
-
-```env
-# Required: shared secret clients must send as the X-API-Key header on
-# every /api/* request. The dashboard refuses to serve requests without it.
-API_KEY=change_me_to_a_long_random_value
-
-# Optional: bind address/port for the web dashboard (defaults shown below)
-WEB_HOST=127.0.0.1
-WEB_PORT=8000
+```bash
+git clone https://github.com/klept0/Telegram-Forwarder-Bot-v2.git
+cd Telegram-Forwarder-Bot-v2
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
+pip install -e .
 ```
 
-### Getting Telegram API Credentials
+Always run the bot and the dashboard **from the project root**. Data paths
+like `resources/` are relative to the current directory.
 
-1. Go to [my.telegram.org](https://my.telegram.org)
-2. Log in with your phone number
-3. Go to "API development tools"
-4. Create a new application
-5. Copy the `api_id` and `api_hash`
+## First run
 
-## Usage
+```bash
+python main.py
+```
 
-### Main Menu Options
+1. Enter your **API ID**, **API hash**, and **phone number** (international
+   format, e.g. `+15551234567`). They're saved to `resources/credentials.json`
+   with owner-only permissions.
+2. Enter the **login code** Telegram sends you and, if you use two-step
+   verification, your **password**. This creates a session under `sessions/`,
+   so you won't be asked again.
+3. Choose **List Chats** from the menu. **Do this before anything else:**
+   every chat picker reads the list it saves (`resources/chats.json`). Run it
+   again whenever you join new chats.
+4. Pick what you want to do (see [Which option do I use?](#which-option-do-i-use)).
+   For history forwards, try a **dry run** first.
 
-1. **Add/Update Credentials** - Configure Telegram API credentials
-2. **List Chats** - Display all available chats
-3. **Delete My Messages** - Delete every message you sent in your groups, except chats on the ignore list (⚠️ irreversible)
-4. **Find User Messages** - Print a user's recent messages from every group/channel (chat, date, text, link) and the total found
-5. **Live Forward Messages** - Start real-time message forwarding
-6. **Past Forward Messages** - Forward historical messages
-7. **Keyword Search + Forward** - Search by keyword and forward matching messages
-8. **Forward Media Files (Files/Images)** - Forward all files/images (optionally keyword-filtered) from a date range, in the order they were posted
-9. **Switch Account** - Change between configured accounts
-10. **Clear Forward Progress Cache** - Reset saved resume state for historical forwarding
-11. **Watch Chat for Phrase → File** - Watch a chat live and append messages containing a phrase to a Markdown file
-12. **Exit** - Close the application
+## Which option do I use?
 
-### Forward Configuration
+| Option | Works on | Filters | Resumable | Dry run | Replies & albums kept |
+| :-- | :-- | :-- | :-- | :-- | :-- |
+| **Live Forward Messages** | New messages, until Ctrl+C | — | — | — | ✅ |
+| **Past Forward Messages** | History, oldest-first | Date range | ✅ | ✅ | ✅ |
+| **Forward Media Files** | History, files/photos/videos only | Date range, keyword | ✅ | ✅ | ✅ |
+| **Keyword Search + Forward** | History (Telegram search when a keyword is given) | Keyword (optional), date range, max messages to scan | ✅ with a start **and** end date | ✅ | ❌ sent as individual messages |
+| **Watch Chat for Phrase → File** | New messages, until Ctrl+C | Phrase | — | — | Writes to a file, doesn't forward |
 
-Configure message forwarding by specifying:
+**Resumable** means re-running the same source, date range, and filters picks
+up after the last message already forwarded, whether the previous run finished
+or was interrupted, so nothing is sent twice. To deliberately start a range
+over, use **Clear Forward Progress Cache** first. That clears progress for
+*every* chat and range.
 
-- **Source Chat**: The chat to forward messages from
-- **Destination Chat**: The chat to forward messages to
-- **Date Filtering**: Choose from:
-  - No date filter (forward all messages)
-  - Filter by specific month
-  - Filter by multiple months
-  - Filter by custom date range
-- **Timezone**: Choose UTC, local system timezone, or custom IANA timezone
-- **Dry-Run Preview**: Optional count-only run without sending messages
-- **Enabled**: Whether forwarding is active
+### Main menu
 
-Replies and albums are preserved in live, past, and media forwarding:
+1. **Add/Update Credentials**: add another account's API credentials
+2. **List Chats**: refresh the saved chat list
+3. **Delete My Messages**: delete every message you sent in your groups, except chats on the ignore list (⚠️ irreversible)
+4. **Find User Messages**: print a user's recent messages from every group/channel (chat, date, text, link) and the total found
+5. **Live Forward Messages**
+6. **Past Forward Messages**
+7. **Keyword Search + Forward**
+8. **Forward Media Files (Files/Images)**
+9. **Switch Account**
+10. **Clear Forward Progress Cache**
+11. **Watch Chat for Phrase → File**
+12. **Exit**
 
-- **Replies**: if the message being replied to was forwarded earlier, the
+### Forwarding configurations
+
+Live and Past forwarding use saved **source → destination** pairs. Choose
+**New settings** to pick pairs (select **Stop** when done), or reuse the saved
+ones. You're then asked for a date filter (none, one month, several months,
+or a custom range) and, if you choose one, a timezone (UTC, your local zone,
+or any IANA name like `America/New_York`) and whether to dry-run. These only
+affect Past forwarding; Live forwarding ignores them.
+
+Pairs can be enabled or disabled from the web dashboard. Disabled pairs show
+as `[disabled]` and are skipped.
+
+How replies and albums are handled:
+
+- **Replies:** if the message being replied to was forwarded earlier, the
   reply is forwarded as a reply to that copy, still showing "Forwarded from".
   If the original wasn't forwarded (e.g. it's outside the date range), the
   reply is forwarded normally.
-- **Albums**: photos/videos sent together are forwarded together as one album.
+- **Albums:** photos and videos sent together are forwarded together.
 
-When forwarding historical messages, the bot displays real-time progress indicators showing:
-
-- An approximate number of messages to forward
-- Current progress (X/Y messages)
-- Percentage completion (against the estimate; use a dry run for an exact count)
-
-### Keyword Search + Forward
-
-Use the `Keyword Search + Forward` menu option to:
-
-- Select source and destination chats
-- Optionally enter a keyword to search in source chat history — leave it
-  blank to forward every message in range instead of filtering by keyword
-- Optionally set date range + timezone filtering
-- Run dry-run preview (count matches only) or forward matches
-
-Matching messages are forwarded in chronological order. When a date range is
-selected, this is resumable: re-running the exact same source, date range,
-and keyword — whether the previous run finished or was interrupted — checks
-what's already been forwarded and only sends what hasn't been, instead of
-duplicating messages. Use `Clear Forward Progress Cache` to force a full
-re-scan of a range you've already run.
-
-### Forward Media Files (Files/Images)
-
-Use the `Forward Media Files` menu option to forward only messages that
-carry a file, photo, or video from a source chat's history — in the order
-they were originally posted:
-
-- Select source and destination chats
-- Optionally filter to files whose caption/text matches a keyword
-- Pick a date range (no filter, a specific month, multiple months, or a
-  custom range — e.g. "all of June")
-- Timezone selection and dry-run preview, same as the other forward flows
-
-Dry-run preview reports the **total number of matching files**, not an
-estimate. Real runs are resumable: if you re-run the exact same source,
-date range, and keyword/media combination — whether the previous run
-finished or was interrupted — it picks up right after the last file it
-already forwarded instead of sending duplicates. To force a full re-scan
-of a range you've already run, use `Clear Forward Progress Cache` first.
+History runs show progress against an **estimated** total; a dry run gives
+the exact count.
 
 ### Watch Chat for Phrase → File
 
-Use the `Watch Chat for Phrase → File` menu option to keep a running log of
-every new message in one chat that contains a phrase:
-
-- Select the chat to watch (run `List Chats` first so it appears)
-- Enter the phrase — matching is case-insensitive and finds the phrase
-  anywhere in the message text or caption
-- Choose the output file (defaults to `logs/phrase_<chat_name>.md`)
-
-The bot then listens live, like `Live Forward Messages`, until you press
-Ctrl+C. Each match is appended as a Markdown entry with its UTC timestamp,
-the sender (in groups), a link back to the message, and the message text as a
-quote. Re-running with the same file keeps appending to it. Markdown is plain
-text, so you can name the file `.txt` if you prefer. Only messages that arrive
-while the watch is running are logged; earlier history isn't scanned.
-
-Example entry:
+Pick a chat, type a phrase, and choose an output file (default
+`logs/phrase_<chat_name>.md`). Every new message containing the phrase
+(case-insensitive, anywhere in the text or caption) is appended until you
+press Ctrl+C. Each entry has its UTC time, the sender (in groups), a link to
+the message, and the text:
 
 ```markdown
 ## 2026-10-13 14:05:09 UTC
@@ -348,193 +152,154 @@ Example entry:
 > ALERT: server down in eu-1
 ```
 
-In Docker, `logs/` is already mounted as a volume, so the file is kept on the
-host.
+Multi-line posts keep one line per entry. Re-running with the same file keeps
+appending to it, and you can name it `.txt` if you prefer. Only messages that
+arrive while the watch runs are logged.
+
+## Web dashboard
+
+The dashboard reuses the session from [First run](#first-run); it never asks
+for a Telegram login itself.
+
+1. Create `.env` in the project root and set an API key:
+
+   ```bash
+   cp .env.example .env
+   # then set API_KEY to a long random value
+   ```
+
+   ```env
+   API_KEY=change_me_to_a_long_random_value  # required
+   WEB_HOST=127.0.0.1                         # optional (default)
+   WEB_PORT=8000                              # optional (default)
+   ```
+
+2. Start it from the project root: `python web/app.py`, or
+   `python -m web.app`.
+3. Open <http://localhost:8000>. The page asks for the `API_KEY` once and
+   remembers it in that browser.
+
+The dashboard shows bot status and the send queue, browses chats, adds,
+enables, disables and deletes forwarding configurations, and starts or stops
+live forwarding for all enabled configurations. It binds to `127.0.0.1` by
+default. Only set `WEB_HOST=0.0.0.0` behind a reverse proxy.
 
 ### Web API
 
-The web interface provides a REST API for programmatic access. Every
-`/api/*` route requires an `X-API-Key` header matching the server's
-`API_KEY` environment variable (see [Configuration](#configuration)):
+Every `/api/*` route requires an `X-API-Key` header matching `API_KEY`.
+Interactive API docs are at <http://localhost:8000/docs>; enter your key in
+the `x-api-key` field to try requests.
+
+| Method & path | What it does |
+| :-- | :-- |
+| `GET /api/status` | Status, queue size, current task, uptime, enabled configurations |
+| `GET /api/chats` | List the account's chats |
+| `GET /api/forwards` | List forwarding configurations |
+| `POST /api/forwards` | Create one: `source_id`, `source_name`, `destination_id`, `destination_name`, `enabled` |
+| `DELETE /api/forwards/{source_id}` | Delete one |
+| `POST /api/forwards/{source_id}/toggle` | Enable/disable one |
+| `POST /api/start-forwarding` | Start live forwarding for all enabled configurations (`400` if none, `409` if already running) |
+| `POST /api/stop-forwarding` | Stop live forwarding (`409` if not running) |
+| `POST /api/keyword-forward` | Run a Keyword Search + Forward (below) |
+
+Configurations are read when live forwarding starts. After changing them,
+stop and start again.
+
+Example keyword forward (only `source_id` and `destination_id` are required):
 
 ```bash
-curl -H "X-API-Key: $API_KEY" http://localhost:8000/api/status
+curl -X POST http://localhost:8000/api/keyword-forward \
+  -H "X-API-Key: $API_KEY" -H "Content-Type: application/json" \
+  -d '{
+        "source_id": -1001234567890,
+        "destination_id": -1009876543210,
+        "keyword": "invoice",
+        "limit": 500,
+        "start_date": "2026-06-01",
+        "end_date": "2026-06-30",
+        "timezone_name": "UTC",
+        "dry_run": true
+      }'
+# {"message": "Keyword run completed: 12 messages previewed for keyword 'invoice'."}
 ```
 
-#### Status & Monitoring
+Omit `keyword` to forward everything in the range; `limit` (default 500) caps
+how many messages are scanned. Chat IDs come from `GET /api/chats`.
 
-- `GET /api/status` - Get real-time bot status
+## Docker
 
-#### Chat Management
+1. `cp .env.example .env` and set `API_KEY` (required by the `web` service).
+2. Log in once, interactively:
 
-- `GET /api/chats` - List available Telegram chats
+   ```bash
+   docker compose run --rm telegram-forwarder
+   ```
 
-#### Forwarding Configuration
+   Complete the [First run](#first-run) steps, then exit. The session and
+   credentials are saved to the mounted `sessions/` and `resources/` folders.
+3. Start the bot and the dashboard in the background:
 
-- `GET /api/forwards` - List all forwarding configurations
-- `POST /api/forwards` - Create new forwarding configuration
-- `DELETE /api/forwards/{source_id}` - Delete forwarding configuration
-- `POST /api/forwards/{source_id}/toggle` - Enable/disable forwarding
+   ```bash
+   docker compose up -d --build
+   ```
 
-#### Control Operations
+4. Use the bot's menu by attaching to it:
 
-- `POST /api/start-forwarding` - Start live forwarding for every enabled configuration (`400` if none are enabled, `409` if already running). Configs are read at start; stop and start again after changing them.
-- `POST /api/stop-forwarding` - Stop live forwarding (`409` if not running)
+   ```bash
+   docker attach telegram-forwarder-bot
+   ```
 
-#### Keyword Forwarding
+   Press Enter if the menu doesn't redraw. Detach **without stopping it** with
+   `Ctrl+P` then `Ctrl+Q`; `Ctrl+C` while attached stops the container.
 
-- `POST /api/keyword-forward` - Forward messages in a source chat, optionally filtered by keyword (omit `keyword` to forward everything in range) — supports dry-run and, with a date range, resumes without re-forwarding what was already sent
+Logs: `docker compose logs -f telegram-forwarder` · Stop: `docker compose down`
 
-## Development
+`resources/`, `sessions/`, `media/` and `logs/` are bind-mounted from the
+project folder, so they survive rebuilds. The dashboard is published on
+`127.0.0.1:8000` only. Older Docker installs use `docker-compose` instead of
+`docker compose`.
 
-### Project Structure
+## Where your data lives
 
-```text
-telegram-forwarder-bot-v2/
-├── source/
-│   ├── core/
-│   │   ├── __init__.py
-│   │   ├── Bot.py
-│   │   └── Telegram.py
-│   ├── dialog/
-│   │   ├── __init__.py
-│   │   ├── BaseDialog.py
-│   │   ├── ForwardDialog.py
-│   │   └── ...
-│   ├── menu/
-│   │   ├── __init__.py
-│   │   ├── AccountSelector.py
-│   │   └── MainMenu.py
-│   ├── model/
-│   │   ├── __init__.py
-│   │   ├── Chat.py
-│   │   ├── Credentials.py
-│   │   └── ...
-│   ├── service/
-│   │   ├── __init__.py
-│   │   ├── MessageQueue.py
-│   │   ├── MessageForwardService.py
-│   │   └── ...
-│   └── utils/
-│       ├── __init__.py
-│       ├── Console.py
-│       ├── Constants.py
-│       ├── DateUtils.py
-│       └── FileUtils.py
-├── web/
-│   ├── app.py
-│   ├── static/
-│   ├── templates/
-│   └── README.md
-├── docs/
-│   ├── conf.py
-│   ├── index.rst
-│   └── Makefile
-├── tests/
-├── .github/
-│   ├── scripts/changelog_section.py
-│   └── workflows/ci.yml
-├── .env.example
-├── .gitignore
-├── .pre-commit-config.yaml
-├── CHANGELOG.md
-├── Dockerfile
-├── docker-compose.yml
-├── LICENSE
-├── main.py
-├── pyproject.toml
-├── requirements.txt
-└── README.md
+| Path | Contents | If deleted |
+| :-- | :-- | :-- |
+| `resources/credentials.json` | API ID, API hash, phone number (owner-only permissions) | You re-enter credentials |
+| `sessions/` | Logged-in Telegram session | You log in again with a code |
+| `resources/chats.json` | Chat list from **List Chats** | Run **List Chats** again |
+| `resources/forwardConfig.json` | Saved source → destination pairs | Saved forwarding settings are lost |
+| `resources/forward_progress.json` | Resume points for history forwards | The next run starts from the beginning |
+| `resources/history.json` | Source → destination message IDs, used to thread replies | Replies to earlier forwards aren't threaded |
+| `logs/phrase_*.md` | Phrase-watch output | Recreated on the next match |
+| `.env` | Web dashboard settings | The dashboard refuses API requests |
 
-# Created at runtime (gitignored): resources/, sessions/, media/, logs/
-```
+All of these are gitignored.
 
-### Running Tests and Checks
+## Troubleshooting
 
-Install the dev tools, then run the same checks CI runs:
-
-```bash
-pip install -e ".[dev]"
-ruff check source/ tests/
-ruff format --check source/ tests/
-mypy source/
-pytest tests/ --cov=source
-```
-
-### Building Documentation
-
-```bash
-pip install -e ".[docs]"
-cd docs
-make html  # output in docs/_build/html/
-```
-
-## Architecture
-
-### Core Components
-
-- **Bot**: Main application orchestrator
-- **Telegram**: Telethon client wrapper with service integration
-- **Services**: Business logic layer (Forwarding, Queue, Chat management)
-- **Models**: Data persistence and validation
-- **Dialogs**: User interaction flows
-- **Utils**: Shared utilities and constants
-
-### Data Flow
-
-1. **Live Mode**: Event handlers capture new messages → Queue → Rate-limited forwarding
-2. **History Mode**: Bulk message retrieval → Process in batches → Forward with rate limits
-3. **Configuration**: Source/destination chat mapping via ForwardConfig model
+| Symptom | What to do |
+| :-- | :-- |
+| A chat is missing from the picker, or the picker is empty | Run **List Chats** to refresh the saved list. |
+| `Rate limited by Telegram; waiting Ns before retrying…` | Normal. The bot waits as long as Telegram asks and retries (up to 3 times). Leave it running. |
+| `Queue Worker Error (message(chat=…, id=…))` | That one message failed and was skipped, often because the source chat restricts saving content. |
+| Re-running a range forwards nothing | That range already completed. Use **Clear Forward Progress Cache** to redo it. |
+| A forwarded reply isn't shown as a reply | Its original wasn't forwarded (e.g. outside the date range), so it was forwarded normally. |
+| Asked for a login code again | The session was deleted or revoked (Telegram → Settings → Devices). Log in again. |
+| Dashboard shows "Not Initialized" | No logged-in session yet. Complete [First run](#first-run), then restart the dashboard. |
+| API returns `503` "missing API_KEY" | Set `API_KEY` in `.env` and restart the dashboard. |
+| API returns `401` | Wrong key. The page asks for it again. |
+| Start Forwarding says "No enabled forwarding configurations" | Add a configuration, or enable one. |
+| Docker bot container keeps restarting | Make sure `docker-compose.yml` has `stdin_open: true` and `tty: true` for `telegram-forwarder`, then `docker compose up -d --build`. |
+| Files appear in an unexpected `resources/` or `logs/` folder | You started it outside the project root. `cd` there first. |
 
 ## Contributing
 
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/amazing-feature`
-3. Commit your changes: `git commit -m 'Add amazing feature'`
-4. Push to the branch: `git push origin feature/amazing-feature`
-5. Open a Pull Request
-
-### Development Guidelines
-
-- Follow PEP 8 style guidelines
-- Add type hints to all functions and methods
-- Update documentation for API changes
-- Use conventional commit messages
-
-### Changelog Policy
-
-`CHANGELOG.md` is maintained as a running log for every update. Each release entry should include:
-
-- `Added`/`Changed`/`Fixed` details
-- Explicit behavior delta when relevant (before vs after)
-- Release date and semantic version
-
-### Releasing
-
-Releases are published automatically. To cut one:
-
-1. Bump `version` in `pyproject.toml` (and keep `web/app.py` and
-   `docs/conf.py` in step).
-2. Move the `[Unreleased]` entries in `CHANGELOG.md` under a new
-   `## [X.Y.Z] - YYYY-MM-DD` heading.
-3. Merge to `main`.
-
-When CI passes on `main` and no `vX.Y.Z` tag exists yet, the `release` job
-tags that commit, publishes a GitHub release whose notes are the matching
-CHANGELOG section, and attaches the built package (`dist/`). If the
-CHANGELOG has no section for the version, GitHub's generated notes are used
-instead. Pushes that don't change the version publish nothing.
-
-## Security
-
-- Never commit API credentials or sensitive data (`resources/credentials.json` and `sessions/` are gitignored)
-- The web dashboard requires an `API_KEY` and refuses to serve `/api/*` requests without one; it binds to `127.0.0.1` by default
-- Regularly update dependencies for security patches
-- Follow principle of least privilege
+Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the
+development setup, the checks CI runs, the project layout, and how releases
+are made. Changes are recorded in [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
 ## Acknowledgments
 
