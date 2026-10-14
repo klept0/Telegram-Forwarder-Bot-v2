@@ -91,8 +91,23 @@ class PhraseWatcher:
         lines = [f"## {stamp}", ""]
         if meta:
             lines += [" · ".join(meta), ""]
-        lines += [f"> {line}".rstrip() for line in (message.message or "").splitlines()]
+        lines.append(self._quote(message.message or ""))
         return "\n".join(lines) + "\n\n"
+
+    @staticmethod
+    def _quote(text: str) -> str:
+        """Blockquote the message, keeping its line breaks.
+
+        Markdown joins consecutive `>` lines into one paragraph, so a
+        multi-line post (e.g. one schedule entry per line) would render as a
+        single run-on line. Two trailing spaces are Markdown's hard line
+        break and stay invisible when the file is read as plain text.
+        """
+        quoted = [f"> {line}".rstrip() for line in text.splitlines()]
+        return "\n".join(
+            line + "  " if line != ">" and nxt != ">" else line
+            for line, nxt in zip(quoted, quoted[1:] + [">"])
+        )
 
     def message_link(self, message: Message) -> str | None:
         if self.chat_username:

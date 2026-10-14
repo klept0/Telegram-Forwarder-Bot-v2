@@ -48,7 +48,7 @@ async def test_only_matching_messages_are_appended_case_insensitively(tmp_path):
         "> ALERT: server down in eu-1\n\n"
         "## 2026-10-13 14:05:09 UTC\n\n"
         "[Open in Telegram](https://t.me/c/1234/4)\n\n"
-        "> Server down again\n"
+        "> Server down again  \n"
         "> second line\n\n"
     )
 
@@ -62,6 +62,34 @@ async def test_header_written_once_across_watch_sessions(tmp_path):
     content = (tmp_path / "out" / "matches.md").read_text(encoding="utf-8")
     assert content.count("# Messages containing") == 1
     assert content.count("## 2026-10-13") == 2
+
+
+def test_multi_line_posts_keep_one_line_per_entry_when_rendered(tmp_path):
+    """Regression test: Markdown merges consecutive `>` lines into one
+    paragraph, so schedule-style posts rendered as a single run-on line."""
+    from markdown_it import MarkdownIt
+
+    text = (
+        "MLB 01: 8PM Cleveland Guardians vs. Tampa Bay Rays\n"
+        "MLB 02: 8PM Cleveland Guardians vs. Tampa Bay Rays\n"
+        "\n"
+        "MLB 03: 8PM Cleveland Guardians vs. Tampa Bay Rays"
+    )
+    message = _event(5, text, PeerChannel(channel_id=1)).message
+
+    entry = _watcher(tmp_path).format_entry(message, None)
+    html = MarkdownIt("commonmark").render(entry)
+
+    assert html.count("<br />") == 1  # between MLB 01 and MLB 02
+    assert html.count("<p>MLB") == 2  # the blank line still splits paragraphs
+    # Read as plain text, the lines are unchanged apart from the quote marker.
+    plain = [line.rstrip() for line in entry.splitlines() if line.startswith(">")]
+    assert plain == [
+        "> MLB 01: 8PM Cleveland Guardians vs. Tampa Bay Rays",
+        "> MLB 02: 8PM Cleveland Guardians vs. Tampa Bay Rays",
+        ">",
+        "> MLB 03: 8PM Cleveland Guardians vs. Tampa Bay Rays",
+    ]
 
 
 def test_group_entry_names_sender_and_public_chat_uses_username_link(tmp_path):
