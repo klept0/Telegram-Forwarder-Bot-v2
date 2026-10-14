@@ -3,6 +3,11 @@ services:
     build: .
     container_name: telegram-forwarder-bot
     restart: unless-stopped
+    # The bot is an interactive menu: without a TTY it exits immediately
+    # ("Input is not a terminal") and restart-loops. Use `docker attach
+    # telegram-forwarder-bot` to drive it; detach with Ctrl+P, Ctrl+Q.
+    stdin_open: true
+    tty: true
     volumes:
       - ./resources:/app/resources
       - ./media:/app/media

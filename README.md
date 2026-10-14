@@ -2,10 +2,11 @@
 
 [![Python Version](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-2.3.0-0A66C2.svg)](CHANGELOG.md)
+[![Release](https://img.shields.io/github/v/release/klept0/Telegram-Forwarder-Bot-v2?color=0A66C2)](https://github.com/klept0/Telegram-Forwarder-Bot-v2/releases/latest)
+[![CI](https://github.com/klept0/Telegram-Forwarder-Bot-v2/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/klept0/Telegram-Forwarder-Bot-v2/actions/workflows/ci.yml)
 [![Docker](https://img.shields.io/badge/docker-supported-2496ED.svg?logo=docker&logoColor=white)](docker-compose.yml)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-009688.svg?logo=fastapi&logoColor=white)](web/app.py)
-[![Telethon](https://img.shields.io/badge/Telethon-1.39+-2CA5E0.svg)](https://github.com/LonamiWebs/Telethon)
+[![Telethon](https://img.shields.io/badge/Telethon-1.40+-2CA5E0.svg)](https://github.com/LonamiWebs/Telethon)
 
 An asynchronous Telegram message forwarding bot with a modern Python architecture, built with Telethon and Rich.
 
@@ -24,11 +25,11 @@ This project is based on the [original Telegram Forwarder Bot](https://github.co
 - 📝 **Phrase Watch → File**: Watch a chat live and append every message containing a phrase to a Markdown file
 - 🔍 **Keyword Search Forwarding**: Search source chat history by an optional keyword and forward matching (or all) messages, resumable over a date range
 - 👥 **Multi-Account Support**: Switch between multiple Telegram accounts
-- 🎯 **Rate Limiting**: Built-in rate limiting to respect Telegram's API limits
+- 🎯 **Rate Limiting**: Sends are queued and paced, and Telegram flood waits are waited out and retried instead of dropping messages
 - 🎨 **Rich Console UI**: Beautiful terminal interface with Rich
 - 🌐 **Web Dashboard**: FastAPI-based web interface for remote management
-- 🔒 **Secure**: Environment variable management for sensitive data
-- 📝 **Type-Safe**: Full type hints throughout the codebase
+- 🔒 **Secure**: Credentials and sessions stay local (credentials file is owner-only), and the web API requires an API key
+- ✅ **Tested**: pytest suite, ruff, and mypy run in CI on Python 3.10–3.13
 - 🐳 **Docker Support**: Containerized deployment with Docker Compose
 
 ## Quick Start
@@ -99,42 +100,47 @@ Choose one of the following installation methods:
    attached the first time so you can answer the prompts:
 
    ```bash
-   docker-compose run --rm telegram-forwarder
+   docker compose run --rm telegram-forwarder
    ```
 
    This saves a session under `./sessions` and credentials under
    `./resources`, which are mounted as volumes — subsequent runs (including
    the `web` service) reuse that session without prompting again.
 
-4. **Run with Docker Compose:**
+4. **Start in the background:**
 
    ```bash
-   docker-compose up --build
+   docker compose up -d --build
    ```
 
-   Or run in background:
+5. **Use the menu:** the bot is an interactive menu, so attach to it:
 
    ```bash
-   docker-compose up -d --build
+   docker attach telegram-forwarder-bot
    ```
 
-5. **View logs:**
+   Press Enter if the menu doesn't redraw. Detach **without stopping it** with
+   `Ctrl+P` then `Ctrl+Q`. `Ctrl+C` while attached stops the container.
+
+6. **View logs:**
 
    ```bash
-   docker-compose logs -f telegram-forwarder
+   docker compose logs -f telegram-forwarder
    ```
 
-6. **Stop the bot:**
+7. **Stop everything:**
 
    ```bash
-   docker-compose down
+   docker compose down
    ```
 
 **Docker Notes:**
 
-- Configuration files are stored in Docker volumes for persistence
-- The web service's `API_KEY` is loaded from the `.env` file; `docker-compose up` fails fast with a clear error if it isn't set
+- `resources/`, `sessions/`, `media/` and `logs/` are bind-mounted from the project folder, so settings, the login session, and phrase-watch files survive rebuilds
+- The web service's `API_KEY` is loaded from the `.env` file; `docker compose up` fails fast with a clear error if it isn't set
+- The bot and the web dashboard share one Telegram session. Don't run live forwarding from both at the same time
 - The bot runs as a non-root user for security
+- Older Docker installs use `docker-compose` (with a hyphen) instead of `docker compose`
 
 #### Option 3: Web Interface (FastAPI Dashboard)
 
@@ -179,11 +185,14 @@ Choose one of the following installation methods:
    python web/app.py
    ```
 
-   Or run from the project root:
+   Or, equivalently:
 
    ```bash
    python -m web.app
    ```
+
+   Always start it from the project root: data paths like `resources/` are
+   relative to the current directory.
 
 7. **Open your browser:**
 
@@ -236,7 +245,7 @@ WEB_PORT=8000
 
 1. **Add/Update Credentials** - Configure Telegram API credentials
 2. **List Chats** - Display all available chats
-3. **Delete My Messages** - Remove your messages from chats
+3. **Delete My Messages** - Delete every message you sent in your groups, except chats on the ignore list (⚠️ irreversible)
 4. **Find User Messages** - Print a user's recent messages from every group/channel (chat, date, text, link) and the total found
 5. **Live Forward Messages** - Start real-time message forwarding
 6. **Past Forward Messages** - Forward historical messages
@@ -272,9 +281,9 @@ Replies and albums are preserved in live, past, and media forwarding:
 
 When forwarding historical messages, the bot displays real-time progress indicators showing:
 
-- Number of messages found
+- An approximate number of messages to forward
 - Current progress (X/Y messages)
-- Percentage completion
+- Percentage completion (against the estimate; use a dry run for an exact count)
 
 ### Keyword Search + Forward
 
@@ -409,9 +418,10 @@ telegram-forwarder-bot-v2/
 │   └── utils/
 │       ├── __init__.py
 │       ├── Console.py
-│       └── Constants.py
+│       ├── Constants.py
+│       ├── DateUtils.py
+│       └── FileUtils.py
 ├── web/
-│   ├── __init__.py
 │   ├── app.py
 │   ├── static/
 │   ├── templates/
@@ -421,15 +431,22 @@ telegram-forwarder-bot-v2/
 │   ├── index.rst
 │   └── Makefile
 ├── tests/
+├── .github/
+│   ├── scripts/changelog_section.py
+│   └── workflows/ci.yml
 ├── .env.example
 ├── .gitignore
 ├── .pre-commit-config.yaml
+├── CHANGELOG.md
 ├── Dockerfile
 ├── docker-compose.yml
+├── LICENSE
 ├── main.py
 ├── pyproject.toml
 ├── requirements.txt
 └── README.md
+
+# Created at runtime (gitignored): resources/, sessions/, media/, logs/
 ```
 
 ### Running Tests and Checks
@@ -523,9 +540,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - [Telethon](https://github.com/LonamiWebs/Telethon) - Telegram client library
 - [Rich](https://github.com/Textualize/rich) - Beautiful terminal output
+- [InquirerPy](https://github.com/kazhala/InquirerPy) - Interactive terminal menus
 - [FastAPI](https://github.com/tiangolo/fastapi) - Modern web framework
 - [Pydantic](https://github.com/pydantic/pydantic) - Data validation
-- [Loguru](https://github.com/Delgan/loguru) - Structured logging
 - [Uvicorn](https://github.com/encode/uvicorn) - ASGI server
 
 ## Support
