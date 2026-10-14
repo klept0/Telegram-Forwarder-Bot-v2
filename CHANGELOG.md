@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- New `Watch Chat for Phrase → File` menu option (`source/service/PhraseWatcher.py`, `source/dialog/PhraseWatchDialog.py`, `Telegram.watch_phrase`). It watches one chat live and appends every new message containing a phrase (case-insensitive) to a Markdown file, `logs/phrase_<chat>.md` by default. Each entry has a UTC timestamp, the sender (in groups), a link to the message, and the quoted text. The file is created with a header on first use and appended to on later runs. Multi-line posts, like a schedule with one game per line, keep one line per entry when viewed as Markdown.
+
 ## [2.4.0] - 2026-10-13
 
 ### Added
