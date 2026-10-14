@@ -9,11 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.5.0] - 2026-10-14
+
 ### Added
 
-- Automatic GitHub releases: when a push to `main` passes CI and `pyproject.toml`'s version has no `v<version>` tag yet, the CI `release` job tags the commit and publishes a release with that version's `CHANGELOG.md` section as its notes (via `.github/scripts/changelog_section.py`) and the built package attached. If the version has no CHANGELOG section, GitHub's generated notes are used. See "Releasing" in the README.
-
 - New `Watch Chat for Phrase → File` menu option (`source/service/PhraseWatcher.py`, `source/dialog/PhraseWatchDialog.py`, `Telegram.watch_phrase`). It watches one chat live and appends every new message containing a phrase (case-insensitive) to a Markdown file, `logs/phrase_<chat>.md` by default. Each entry has a UTC timestamp, the sender (in groups), a link to the message, and the quoted text. The file is created with a header on first use and appended to on later runs. Multi-line posts, like a schedule with one game per line, keep one line per entry when viewed as Markdown.
+- Automatic GitHub releases: when a push to `main` passes CI and `pyproject.toml`'s version has no `v<version>` tag yet, the CI `release` job tags the commit and publishes a release with that version's `CHANGELOG.md` section as its notes (via `.github/scripts/changelog_section.py`) and the built package attached. If the version has no CHANGELOG section, GitHub's generated notes are used. See "Releasing" in the README.
 
 ## [2.4.0] - 2026-10-13
 
