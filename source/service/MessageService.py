@@ -1,5 +1,7 @@
 from datetime import datetime, timezone
 
+from telethon.errors import FloodWaitError
+
 from source.service.ForwardProgress import ForwardProgress
 from source.utils.Constants import DEFAULT_BATCH_SIZE, DELETE_BATCH_SIZE
 from source.utils.DateUtils import DateUtils
@@ -31,6 +33,8 @@ class MessageService:
     async def _delete_messages(self, chat_id, message_ids):
         try:
             await self.client.delete_messages(chat_id, message_ids)
+        except FloodWaitError:
+            raise  # let the queue wait it out and retry
         except Exception as e:
             self.console.print(f"[bold red]Error deleting messages:[/bold red] {e}")
 

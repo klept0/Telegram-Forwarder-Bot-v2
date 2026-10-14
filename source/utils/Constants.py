@@ -16,4 +16,5 @@ SESSION_PREFIX_PATH = f"{SESSION_FOLDER_PATH}/session_"
 DEFAULT_CHUNK_SIZE = 500  # Messages per chunk when retrieving from Telegram
 DEFAULT_BATCH_SIZE = 50  # Messages to process before saving progress
 DELETE_BATCH_SIZE = 100  # Telegram's max message IDs per delete request
+MAX_FLOOD_WAIT_RETRIES = 3  # Times a queued send waits out a FloodWait and retries
 DEFAULT_RATE_LIMIT_DELAY = 1.0  # Seconds between message sends

@@ -212,3 +212,89 @@ async def test_scan_stop_at_destination_does_not_pick_last_chat(tmp_path, monkey
 
     assert configs == []
     assert json.loads((tmp_path / "forwardConfig.json").read_text()) == []
+
+
+def _flood_wait(seconds: int):
+    from telethon.errors import FloodWaitError
+
+    return FloodWaitError(request=None, capture=seconds)
+
+
+@pytest.fixture
+def recorded_sleeps(monkeypatch):
+    """Make the queue's sleeps instant, recording how long each would be."""
+    sleeps: list[float] = []
+    real_sleep = asyncio.sleep
+
+    async def fake_sleep(seconds):
+        sleeps.append(seconds)
+        await real_sleep(0)
+
+    monkeypatch.setattr("source.service.MessageQueue.asyncio.sleep", fake_sleep)
+    return sleeps
+
+
+@pytest.mark.asyncio
+async def test_queue_waits_out_flood_wait_and_retries(recorded_sleeps):
+    """Regression test: a FloodWaitError longer than Telethon's auto-sleep
+    threshold used to be logged and the message silently dropped."""
+    calls = []
+
+    async def send(*_args):
+        calls.append("attempt")
+        if len(calls) == 1:
+            raise _flood_wait(120)
+        return "sent"
+
+    queue = MessageQueue(max_concurrent=1, delay=0)
+    await queue.put((send, ("dest", MagicMock(id=1))))
+    await asyncio.wait_for(queue.join(), timeout=1)
+    await queue.stop()
+
+    assert calls == ["attempt", "attempt"]
+    assert 121 in recorded_sleeps
+
+
+@pytest.mark.asyncio
+async def test_queue_gives_up_after_max_flood_retries_and_keeps_going(
+    recorded_sleeps, monkeypatch
+):
+    monkeypatch.setattr("source.service.MessageQueue.MAX_FLOOD_WAIT_RETRIES", 2)
+    attempts = []
+    done = []
+
+    async def always_flooded(*_args):
+        attempts.append(1)
+        raise _flood_wait(5)
+
+    async def next_task(*_args):
+        done.append(True)
+
+    queue = MessageQueue(max_concurrent=1, delay=0)
+    await queue.put((always_flooded, ("dest", MagicMock(id=1))))
+    await queue.put((next_task, ("dest", MagicMock(id=2))))
+    await asyncio.wait_for(queue.join(), timeout=1)
+    await queue.stop()
+
+    assert len(attempts) == 3  # first try + 2 retries
+    assert done == [True]
+
+
+@pytest.mark.asyncio
+async def test_delete_lets_flood_wait_reach_the_queue(recorded_sleeps):
+    client = MagicMock()
+    client.delete_messages = AsyncMock(side_effect=[_flood_wait(90), None])
+
+    async def iter_messages(_chat_id, **_kwargs):
+        yield MagicMock(id=1)
+
+    client.iter_messages = iter_messages
+    queue = MessageQueue(max_concurrent=1, delay=0)
+    service = MessageService(client, MagicMock(), queue=queue)
+
+    await service.delete_messages_from_dialog(MagicMock(id=-100111))
+    await asyncio.wait_for(queue.join(), timeout=1)
+    await queue.stop()
+
+    assert client.delete_messages.await_count == 2
+    assert 91 in recorded_sleeps
