@@ -9,11 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
-
-- README reorganized for new users and cut from about 550 to 320 lines. New sections: **Before you start** (risks of automating a personal account, protected chats, one live job at a time, session-file safety), a **First run** walkthrough (including that **List Chats** must run before any chat picker works), a **Which option do I use?** comparison of the five modes (noting that Keyword Search + Forward doesn't keep replies or albums), **Where your data lives**, and **Troubleshooting**. The three install paths are merged into one, and plain `pip install -e .` replaces `.[dev]`/`.[web]` for users. The Web API section is now a table with a `keyword-forward` example and a pointer to the interactive docs at `/docs`. The feature list is down from 17 bullets to 8.
-- Developer material moved from the README to a new `CONTRIBUTING.md`: setup, CI checks, pull request and changelog rules, releasing, project layout, and architecture.
-- Minimum Telethon version raised from 1.39 to **1.40**, the first release whose forward request supports `reply_to` (`requirements.txt`: `telethon~=1.40`; `pyproject.toml`: `telethon>=1.40.0`).
+## [2.5.1] - 2026-10-14
 
 ### Fixed
 
@@ -23,6 +19,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Find User Messages found messages but never showed them.** Matches were handed to an empty placeholder. Each match is now printed with its chat, date, text, and link, followed by a total.
 - **The Docker bot container couldn't run detached.** It runs the interactive menu, which exits immediately without a terminal ("Input is not a terminal"), so `docker compose up -d` left it in a restart loop. `docker-compose.yml` now gives it a TTY (`stdin_open`/`tty`), and the README explains using the menu with `docker attach telegram-forwarder-bot` and detaching with `Ctrl+P`, `Ctrl+Q`.
 - README accuracy pass: the version badge (stuck at 2.3.0) now shows the latest GitHub release automatically, a CI badge was added, and the Telethon badge reads 1.40+. Feature claims now match the code (type-hints, env-var and progress-estimate wording, and Delete My Messages' scope). The project tree lists the real files, Docker commands use `docker compose`, and the unused Loguru acknowledgment is gone. `web/README.md` no longer suggests starting the dashboard from inside `web/`, which made it look for credentials in `web/resources/`.
+
+### Changed
+
+- README reorganized for new users and cut from about 550 to 320 lines. New sections: **Before you start** (risks of automating a personal account, protected chats, one live job at a time, session-file safety), a **First run** walkthrough (including that **List Chats** must run before any chat picker works), a **Which option do I use?** comparison of the five modes (noting that Keyword Search + Forward doesn't keep replies or albums), **Where your data lives**, and **Troubleshooting**. The three install paths are merged into one, and plain `pip install -e .` replaces `.[dev]`/`.[web]` for users. The Web API section is now a table with a `keyword-forward` example and a pointer to the interactive docs at `/docs`. The feature list is down from 17 bullets to 8.
+- Developer material moved from the README to a new `CONTRIBUTING.md`: setup, CI checks, pull request and changelog rules, releasing, project layout, and architecture.
+- Minimum Telethon version raised from 1.39 to **1.40**, the first release whose forward request supports `reply_to` (`requirements.txt`: `telethon~=1.40`; `pyproject.toml`: `telethon>=1.40.0`).
 
 ## [2.5.0] - 2026-10-14
 
