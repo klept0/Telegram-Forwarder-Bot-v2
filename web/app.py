@@ -297,32 +297,39 @@ async def toggle_forward(source_id: int):
 
 @app.post("/api/start-forwarding", dependencies=[Depends(verify_api_key)])
 async def start_forwarding():
-    """Start live message forwarding."""
-    try:
-        if not telegram_client:
-            raise HTTPException(
-                status_code=503, detail="Telegram client not initialized"
-            )
+    """Start live forwarding for every enabled forwarding configuration.
 
-        # This would need to be implemented based on your forwarding logic
-        return {"message": "Live forwarding started"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    Configs are read once at start; after adding, removing or toggling one,
+    stop and start again for the change to take effect.
+    """
+    if not telegram_client:
+        raise HTTPException(status_code=503, detail="Telegram client not initialized")
+
+    forwards = (
+        ForwardConfig.read() if os.path.exists("resources/forwardConfig.json") else []
+    )
+    enabled = [f for f in forwards if f.enabled]
+    if not enabled:
+        raise HTTPException(
+            status_code=400, detail="No enabled forwarding configurations"
+        )
+
+    if not telegram_client.start_live_forwarding({f.sourceID: f for f in enabled}):
+        raise HTTPException(
+            status_code=409, detail="Live forwarding is already running"
+        )
+    return {"message": f"Live forwarding started for {len(enabled)} configuration(s)"}
 
 
 @app.post("/api/stop-forwarding", dependencies=[Depends(verify_api_key)])
 async def stop_forwarding():
     """Stop live message forwarding."""
-    try:
-        if not telegram_client:
-            raise HTTPException(
-                status_code=503, detail="Telegram client not initialized"
-            )
+    if not telegram_client:
+        raise HTTPException(status_code=503, detail="Telegram client not initialized")
 
-        # This would need to be implemented based on your forwarding logic
-        return {"message": "Live forwarding stopped"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    if not telegram_client.stop_live_forwarding():
+        raise HTTPException(status_code=409, detail="Live forwarding is not running")
+    return {"message": "Live forwarding stopped"}
 
 
 @app.post("/api/keyword-forward", dependencies=[Depends(verify_api_key)])

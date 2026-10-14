@@ -299,7 +299,7 @@
             try {
                 const response = await apiFetch('/api/start-forwarding', { method: 'POST' });
                 const result = await response.json();
-                showAlert(result.message);
+                showAlert(result.message || result.detail || 'Failed to start forwarding', response.ok ? 'success' : 'error');
                 refreshStatus();
             } catch (error) {
                 showAlert('Failed to start forwarding', 'error');
@@ -310,7 +310,7 @@
             try {
                 const response = await apiFetch('/api/stop-forwarding', { method: 'POST' });
                 const result = await response.json();
-                showAlert(result.message);
+                showAlert(result.message || result.detail || 'Failed to stop forwarding', response.ok ? 'success' : 'error');
                 refreshStatus();
             } catch (error) {
                 showAlert('Failed to stop forwarding', 'error');

@@ -21,6 +21,7 @@ def _message(message_id: int, day: int):
     message.is_reply = False
     message.media = None
     message.text = ""
+    message.grouped_id = None
     return message
 
 

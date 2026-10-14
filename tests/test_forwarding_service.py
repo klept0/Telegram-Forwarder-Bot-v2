@@ -23,35 +23,30 @@ def _mock_message(
     message.is_reply = False
     message.media = media
     message.text = text
+    message.grouped_id = None
     return message
 
 
 @pytest.mark.asyncio
-async def test_forward_message_uses_forward_messages():
+async def test_forward_message_without_reply_uses_forward_messages():
     client = AsyncMock()
     service = MessageForwardService(client)
     message = MagicMock(id=1001, chat_id=-100111)
 
-    await service.forward_message(-100222, message, reply_to=55)
+    await service.forward_message(-100222, message)
 
-    client.forward_messages.assert_awaited_once_with(
-        -100222,
-        message,
-    )
+    client.forward_messages.assert_awaited_once_with(-100222, message)
 
 
 @pytest.mark.asyncio
-async def test_forward_album_uses_forward_messages_and_not_send_messages():
+async def test_forward_album_without_reply_uses_forward_messages_and_not_send():
     client = AsyncMock()
     service = MessageForwardService(client)
     messages = [MagicMock(id=1), MagicMock(id=2)]
 
-    await service.forward_album(-100222, messages, text="caption", reply_to=99)
+    await service.forward_album(-100222, messages, text="caption")
 
-    client.forward_messages.assert_awaited_once_with(
-        -100222,
-        messages,
-    )
+    client.forward_messages.assert_awaited_once_with(-100222, messages)
     called_methods = [call_item[0] for call_item in client.method_calls]
     assert "send_messages" not in called_methods
 

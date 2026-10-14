@@ -38,16 +38,13 @@ class MessageService:
         except Exception as e:
             self.console.print(f"[bold red]Error deleting messages:[/bold red] {e}")
 
-    async def process_user_messages(self, chat, user, limit=None):
-        async for message in self.client.iter_messages(chat.id, limit=limit):
-            if message.sender_id == user.id:
-                if self.queue:
-                    await self.queue.put((self._process_message, (message,)))
-                else:
-                    await self._process_message(message)
-
-    async def _process_message(self, message):
-        pass  # implement any processing/download logic
+    async def find_user_messages(self, chat, user, limit=None):
+        """Messages sent by `user` among the latest `limit` in `chat`."""
+        return [
+            message
+            async for message in self.client.iter_messages(chat.id, limit=limit)
+            if message.sender_id == user.id
+        ]
 
     async def forward_messages_by_keyword(
         self,
