@@ -118,7 +118,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Telegram Forwarder Bot",
     description="Web interface for managing Telegram message forwarding",
-    version="2.5.1",
+    version="2.6.0",
     lifespan=lifespan,
 )
 

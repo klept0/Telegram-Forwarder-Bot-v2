@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.6.0] - 2026-11-01
+
 ### Added
 
 - **Headless live forwarding for startup:** `python main.py --live` starts Live Forward with no prompts, using the saved session and saved Live Forward settings. `--account PHONE` picks the account when more than one is saved (it requires `--live`). The normal `python main.py` menu is unchanged.

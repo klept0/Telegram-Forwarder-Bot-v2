@@ -1,6 +1,6 @@
 project = "Telegram Forwarder Bot v2"
 author = "klept0"
-release = "2.5.1"
+release = "2.6.0"
 
 extensions = []
 templates_path = ["_templates"]
