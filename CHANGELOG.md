@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Headless live forwarding for startup:** `python main.py --live` starts Live Forward with no prompts, using the saved session and saved Live Forward settings. `--account PHONE` picks the account when more than one is saved (it requires `--live`). The normal `python main.py` menu is unchanged.
+  - Exit codes in `--live` mode: `2` means a permanent problem that a restart won't fix (no credentials, no saved settings, not logged in, unknown account). `1` means any other error, which is retryable. `0` means a clean stop.
+- **Windows startup scripts:** `scripts/run-live.ps1` runs `--live` and restarts it after retryable failures (for example, no network at boot), logging to `logs/live.log` (rotated to `live.log.1` past 10 MB). `scripts/install-startup-task.ps1` registers it as a per-user scheduled task that starts at logon (`-Uninstall` removes it).
+
 ### Changed
 
 - The README's Python badge now reads `requires-python` from `pyproject.toml` on `main`, so it updates automatically when the minimum Python version changes, like the release badge already does.

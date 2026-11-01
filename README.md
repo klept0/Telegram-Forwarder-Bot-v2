@@ -226,6 +226,42 @@ curl -X POST http://localhost:8000/api/keyword-forward \
 Omit `keyword` to forward everything in the range; `limit` (default 500) caps
 how many messages are scanned. Chat IDs come from `GET /api/chats`.
 
+## Run automatically at startup
+
+Windows only. This starts Live Forward at logon, without the menu.
+
+Prerequisites:
+
+1. Run `python main.py` once and log in, so the session file exists.
+2. In the menu, run **Live Forward** once and save its settings. The startup run uses those saved settings.
+
+Install the scheduled task (from the project root, in PowerShell):
+
+```powershell
+.\scripts\install-startup-task.ps1
+```
+
+Remove it:
+
+```powershell
+.\scripts\install-startup-task.ps1 -Uninstall
+```
+
+The launcher restarts the bot after errors such as no network at boot. It stops
+retrying when the bot needs a human, such as a login. Logs go to `logs\live.log`
+(the previous log is kept as `logs\live.log.1` after 10 MB).
+
+Only one process can use the session at a time. Stop the task before you open
+the menu:
+
+```powershell
+Stop-ScheduledTask -TaskName TelegramForwarderLive
+```
+
+Stopping the task may not stop the `python` process it started. If you still
+see it, check with `Get-Process python` and stop that process before you open
+the menu.
+
 ## Docker
 
 1. `cp .env.example .env` and set `API_KEY` (required by the `web` service).
