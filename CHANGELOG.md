@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `requirements.txt` pinned `aiofiles~=1.0`, a version that was never published, so `pip install -r requirements.txt` and the Docker build failed. It now pins `aiofiles~=25.1`.
+
 ## [2.6.0] - 2026-11-01
 
 ### Added
