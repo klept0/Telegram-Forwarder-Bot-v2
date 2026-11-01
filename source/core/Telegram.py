@@ -13,6 +13,14 @@ from source.utils.Console import Terminal
 from source.utils.Constants import MEDIA_FOLDER_PATH, SESSION_PREFIX_PATH
 
 
+class HeadlessStartupError(Exception):
+    """Startup cannot continue without a human (no session, no saved config).
+
+    Raised by --live startup. Retrying will not help until the user runs the
+    interactive menu once to fix the cause.
+    """
+
+
 class Telegram:
     def __init__(self, credentials):
         self.credentials = credentials
@@ -40,11 +48,18 @@ class Telegram:
         await instance.connect()
         return instance
 
-    async def connect(self):
+    async def connect(self, interactive: bool = True):
         if not self._is_connected:
             if not self.client.is_connected():
                 await self.client.connect()
             if not await self.client.is_user_authorized():
+                if not interactive:
+                    # client.start() would prompt for a login code and hang.
+                    await self.client.disconnect()
+                    raise HeadlessStartupError(
+                        "Telegram session is not logged in. Run `python main.py` "
+                        "once and log in, then retry."
+                    )
                 await self.client.start(self.credentials.phone_number)
             self._is_connected = True
 
