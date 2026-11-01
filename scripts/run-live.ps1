@@ -15,6 +15,8 @@ if (Test-Path $venvPython) {
 # rich prints arrows and redirected Windows output would otherwise be cp1252.
 $env:PYTHONUTF8 = '1'
 $env:PYTHONIOENCODING = 'utf-8'
+# Write log lines as they happen, not when a buffer fills.
+$env:PYTHONUNBUFFERED = '1'
 
 $logDir = Join-Path $root 'logs'
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
@@ -33,13 +35,9 @@ while ($true) {
     }
 
     Write-Log 'Starting main.py --live'
-    try {
-        & $python main.py --live *>> $log
-        $exitCode = $LASTEXITCODE
-    } catch {
-        Write-Log "Could not start python: $_"
-        $exitCode = 1
-    }
+    # cmd redirection keeps python's UTF-8 bytes; PowerShell 5.1 `>>` would write UTF-16.
+    & cmd.exe /d /c "`"$python`" main.py --live >> `"$log`" 2>&1"
+    $exitCode = $LASTEXITCODE
 
     if ($exitCode -eq 0 -or $exitCode -eq 2) {
         Write-Log "main.py --live exited with code $exitCode. Not restarting."
