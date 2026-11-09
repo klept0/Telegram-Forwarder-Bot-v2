@@ -140,6 +140,9 @@ class Telegram:
         """CLI entry point: forward live until disconnected (Ctrl+C)."""
         self.start_live_forwarding(forward_config)
         try:
+            # Handlers are registered first, so nothing posted during
+            # catch-up is missed; catch_up skips what they already sent.
+            await self._live_forward.catch_up()
             await self.client.run_until_disconnected()
         finally:
             self.stop_live_forwarding()

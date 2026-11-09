@@ -61,6 +61,98 @@ class Forward:
         except Exception as e:
             console.print(f"[bold red]Error handling album:[/bold red] {e}")
 
+    async def catch_up(self) -> int:
+        """Forward messages posted while live forwarding was not running.
+
+        For each source, resumes after the newest source message already
+        recorded in history for its destination, up to the newest message at
+        call time. Call it after add_events(): anything newer is left to the
+        live handlers. Messages that already have a history mapping are
+        skipped, so one the live handler sent during catch-up isn't sent
+        twice. A source with no history is skipped, so a new config never
+        forwards a whole chat. Returns the number of messages forwarded.
+        """
+        # Read every resume point before the first await: once handlers run,
+        # a live send would move a later source's newest mapping past its gap.
+        resume_points = {
+            source: self._last_forwarded_id(source, config.destinationID)
+            for source, config in self.forward_config_map.items()
+        }
+        total = 0
+        for source, config in self.forward_config_map.items():
+            destination_id = config.destinationID
+            try:
+                last_id = resume_points[source]
+                if not last_id:
+                    console.print(
+                        f"[dim]No forward history for {source}; skipping catch-up[/dim]"
+                    )
+                    continue
+                latest = await self.client.get_messages(source, limit=1)
+                if not latest or latest[0].id <= last_id:
+                    continue
+                upper_id = latest[0].id
+                console.print(
+                    f"[bold blue]Catching up {source}: messages after "
+                    f"{last_id} up to {upper_id}[/bold blue]"
+                )
+                total += await self._catch_up_source(
+                    source, destination_id, last_id, upper_id
+                )
+            except Exception as e:
+                console.print(f"[bold red]Catch-up failed for {source}:[/bold red] {e}")
+        if total:
+            console.print(f"[bold green]Catch-up queued {total} message(s)[/bold green]")
+        return total
+
+    def _last_forwarded_id(self, source: int, destination_id: int) -> int:
+        """Newest source message ID with a history mapping to destination_id."""
+        return max(
+            (
+                source_msg_id
+                for (src, source_msg_id, dest) in self.history.get_all_mappings()
+                if src == source and dest == destination_id
+            ),
+            default=0,
+        )
+
+    async def _catch_up_source(
+        self, source: int, destination_id: int, last_id: int, upper_id: int
+    ) -> int:
+        cursor_id = last_id
+        album: list[Message] = []
+        sent = 0
+        done = False
+        while not done:
+            chunk = await self._fetch_ascending_chunk(
+                source, cursor_id, None, DEFAULT_CHUNK_SIZE
+            )
+            if not chunk:
+                break
+            cursor_id = chunk[-1].id
+            for message in chunk:
+                if message.id > upper_id:
+                    done = True
+                    break
+                if self.history.get_mapping(source, message.id, destination_id):
+                    continue
+                grouped_id = message.grouped_id
+                if album and album[-1].grouped_id != grouped_id:
+                    await self._send_history_unit(destination_id, album, 0)
+                    sent += len(album)
+                    album = []
+                if grouped_id:
+                    album.append(message)
+                else:
+                    await self._send_history_unit(destination_id, [message], 0)
+                    sent += 1
+            if len(chunk) < DEFAULT_CHUNK_SIZE:
+                break
+        if album:
+            await self._send_history_unit(destination_id, album, 0)
+            sent += len(album)
+        return sent
+
     async def history_handler(self) -> None:
         for source in self.forward_config_map:
             config = self.forward_config_map[source]
