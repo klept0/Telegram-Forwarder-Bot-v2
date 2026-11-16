@@ -5,7 +5,8 @@
 param(
     [switch]$Uninstall,
     [string]$TaskName = 'TelegramForwarderLive',
-    [int]$DelaySeconds = 30
+    [int]$DelaySeconds = 30,
+    [int]$WatchdogMinutes = 5
 )
 
 $ErrorActionPreference = 'Stop'
@@ -27,6 +28,11 @@ $user = "$env:USERDOMAIN\$env:USERNAME"
 $trigger = New-ScheduledTaskTrigger -AtLogOn -User $user
 $trigger.Delay = "PT${DelaySeconds}S"
 
+# Watchdog: every N minutes, start the task again. MultipleInstances IgnoreNew makes this a
+# no-op while run-live.ps1 is still running, so it only relaunches after the loop was killed.
+$watchdog = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) `
+    -RepetitionInterval (New-TimeSpan -Minutes $WatchdogMinutes)
+
 $principal = New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Limited
 
 $action = New-ScheduledTaskAction -Execute 'powershell.exe' `
@@ -37,13 +43,16 @@ $settings = New-ScheduledTaskSettingsSet `
     -DontStopIfGoingOnBatteries `
     -StartWhenAvailable `
     -MultipleInstances IgnoreNew `
-    -ExecutionTimeLimit ([TimeSpan]::Zero)
+    -ExecutionTimeLimit ([TimeSpan]::Zero) `
+    -RestartCount 999 `
+    -RestartInterval (New-TimeSpan -Minutes 1)
 
-Register-ScheduledTask -TaskName $TaskName -Trigger $trigger -Principal $principal `
+Register-ScheduledTask -TaskName $TaskName -Trigger @($trigger, $watchdog) -Principal $principal `
     -Action $action -Settings $settings -Force | Out-Null
 
 Write-Host "Registered scheduled task '$TaskName' for $user."
 Write-Host "  Runs at logon (after a $DelaySeconds second delay): $runScript"
+Write-Host "  Watchdog relaunches it every $WatchdogMinutes minutes if it is not running."
 Write-Host "  Log file: $(Join-Path $root 'logs\live.log')"
 Write-Host "  Start it now:  Start-ScheduledTask -TaskName $TaskName"
 Write-Host "  View the log:  Get-Content '$(Join-Path $root 'logs\live.log')' -Tail 50"

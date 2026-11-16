@@ -217,6 +217,7 @@ resources/ignoreChats.json
 resources/wantedUser.json
 resources/forward_progress.json
 sessions/
+sessions.zip
 media/
 logs/
 wiki-content.md
