@@ -25,7 +25,9 @@ curl -H "X-API-Key: $API_KEY" http://localhost:8000/api/status
 
 The dashboard also never logs into Telegram itself — run `python main.py`
 once from the project root to authenticate an account; the web interface
-reuses that session.
+reuses that session. Only one process can use an account at a time, so stop
+the menu or `python main.py --live` before you start the dashboard. Otherwise
+it starts without a Telegram connection and shows "Not Initialized".
 
 ## Quick Start
 
@@ -79,7 +81,7 @@ reuses that session.
 
 ### Keyword Forwarding
 
-- `POST /api/keyword-forward` - Forward messages, optionally filtered by keyword (omit it to forward everything in range) — supports date range, timezone, dry-run, and (with a date range) resumes without re-forwarding what was already sent
+- `POST /api/keyword-forward` - Forward messages, optionally filtered by keyword (omit it to forward everything in range) — supports date range, timezone, dry-run, and (with a date range) resumes without re-forwarding what was already sent. `limit` is 1 to 5000 (default 500); a date-ranged run that reaches it stops, and the next run continues from there. Invalid dates, a start date after the end date, an unknown timezone or an out-of-range `limit` return `422`
 
 ## Development
 
@@ -102,13 +104,13 @@ web/
 
 ## Docker Support
 
-The web interface is included in the Docker setup. To run with Docker:
+The web interface is an opt-in service in the Docker setup. It shares
+`resources/` and `sessions/` with the bot, and only one process can use an
+account, so run it instead of the bot:
 
 ```bash
-docker compose up -d --build web
+docker compose stop telegram-forwarder
+docker compose --profile web up -d --build web
 ```
 
-The `web` service depends on `telegram-forwarder`, so this starts both. The
-dashboard is published on `127.0.0.1:8000` and shares `resources/` and
-`sessions/` with the bot. Don't run live forwarding from the bot menu and the
-dashboard at the same time, because they share one Telegram session.
+The dashboard is published on `127.0.0.1:8000`.
