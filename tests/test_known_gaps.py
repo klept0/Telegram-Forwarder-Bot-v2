@@ -136,10 +136,10 @@ async def test_history_forwards_albums_as_one_unit_across_chunks(monkeypatch):
     forward._save_progress = AsyncMock()
     sent = []
     forward._forward_message = AsyncMock(
-        side_effect=lambda _dest, m: sent.append([m.id])
+        side_effect=lambda _dest, m, **_kw: sent.append([m.id])
     )
     forward._forward_album = AsyncMock(
-        side_effect=lambda _dest, ms: sent.append([m.id for m in ms])
+        side_effect=lambda _dest, ms, **_kw: sent.append([m.id for m in ms])
     )
 
     await forward._forward_chat_history(SOURCE, 0)

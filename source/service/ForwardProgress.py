@@ -68,8 +68,13 @@ class ForwardProgress:
             ):
                 return chat_progress.get("last_message_id", 0)
 
-            # Backward compatibility: older progress files keyed only by source id.
-            legacy_progress = progress_data.get(str(source))
+            # Backward compatibility: older progress files keyed only by source
+            # id. That entry tracked a plain "forward everything" run, so it
+            # only stands in for the unfiltered key: applying it to a date
+            # range, media or keyword run would start past messages that run
+            # has never forwarded.
+            is_plain_run = not (start_date or end_date or media_only or keyword)
+            legacy_progress = progress_data.get(str(source)) if is_plain_run else None
             if legacy_progress and legacy_progress.get("status") in (
                 "in_progress",
                 "completed",
@@ -82,6 +87,26 @@ class ForwardProgress:
         return 0
 
     @staticmethod
+    def load_failed(
+        source: int,
+        start_date: str | None = None,
+        end_date: str | None = None,
+        media_only: bool = False,
+        keyword: str | None = None,
+    ) -> list[int]:
+        """Message IDs at or before the resume point whose send failed in an
+        earlier run of this chat/range/mode, so the next run can retry them."""
+        progress_key = ForwardProgress.key(
+            source, start_date, end_date, media_only, keyword
+        )
+        try:
+            with open(FORWARD_PROGRESS_FILE_PATH, encoding="utf-8") as f:
+                entry = json.load(f).get(progress_key) or {}
+            return [int(i) for i in entry.get("failed_message_ids") or []]
+        except (json.JSONDecodeError, OSError, AttributeError, TypeError, ValueError):
+            return []
+
+    @staticmethod
     def save(
         source: int,
         last_message_id: int,
@@ -89,8 +114,14 @@ class ForwardProgress:
         end_date: str | None = None,
         media_only: bool = False,
         keyword: str | None = None,
+        failed_ids: list[int] | None = None,
     ) -> bool:
-        """Persist progress for this chat/range/mode. Returns True on success."""
+        """Persist progress for this chat/range/mode. Returns True on success.
+
+        `failed_ids` are messages at or before `last_message_id` whose send
+        failed; they are stored so the next run retries them instead of
+        resuming past them.
+        """
         progress_file = FORWARD_PROGRESS_FILE_PATH
         progress_key = ForwardProgress.key(
             source, start_date, end_date, media_only, keyword
@@ -112,6 +143,8 @@ class ForwardProgress:
             "timestamp": datetime.now().isoformat(),
             "status": "in_progress",
         }
+        if failed_ids:
+            progress_data[progress_key]["failed_message_ids"] = sorted(failed_ids)
 
         try:
             write_json_atomic(progress_file, progress_data)

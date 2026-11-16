@@ -92,10 +92,15 @@ async def test_keyword_forward_waits_for_queue_before_marking_progress(
     sent_ids: list[int] = []
 
     class Client:
-        async def iter_messages(self, _source, search=None, limit=None, min_id=0):
-            for message in (_message(2, 10), _message(1, 5)):
+        async def iter_messages(
+            self, _source, search=None, limit=None, min_id=0, reverse=False
+        ):
+            for message in (_message(1, 5), _message(2, 10)):
                 if message.id > min_id:
                     yield message
+
+        async def get_messages(self, _source, **_kwargs):
+            return [_message(1, 5)]
 
         async def forward_messages(self, _destination, message):
             await asyncio.sleep(0.01)

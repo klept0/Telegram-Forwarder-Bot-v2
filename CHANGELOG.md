@@ -9,9 +9,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Live Forward catches up after a restart.** When Live Forward starts from the menu or with `--live`, it first forwards what each source posted since the last message it forwarded. A source with no forward history is skipped, so a new pair never forwards a whole chat. Live forwarding started from the web dashboard doesn't catch up.
+- **A log line per live forward.** Live mode printed only startup, catch-up and error lines, so `logs/live.log` couldn't show whether anything was forwarded. It now prints one timestamped line per forwarded message or album, e.g. `2026-11-16 17:15:06 Forwarded message 1138433 from -1001234567890 as 86396 in -1009876543210`. Bulk history runs stay quiet; they have their own progress output.
+- **One process per Telegram session.** The menu, `--live` and the web dashboard used to open the same session file together, which failed with "database is locked" and made them compete for updates. The second process to connect is now refused with "This Telegram session is already in use by another process". The lock is a `.lock` file next to the session and is dropped when the process ends.
+
+### Changed
+
+- **Keyword Search + Forward with a start and end date now works oldest-first.** Before: it took the newest matches up to the limit and saved the newest ID as the resume point, so the older matches beyond the limit were never forwarded. After: it scans oldest-first from the resume point, stops at the limit with "Stopped at the N-message limit", and the next run continues from there. Without both dates it still takes the newest matches and can't resume.
+- **The Docker `web` service is opt-in.** Before: `docker compose up -d` started the bot and the dashboard on the same session. After: only the bot starts; run the dashboard instead of the bot with `docker compose --profile web up -d --build web`.
+- **Credentials are saved after a successful login,** not before, so a mistyped API ID or phone number is no longer stored. Saving a phone number that is already stored replaces that entry instead of adding a duplicate.
+- **History mappings are appended to `resources/history.jsonl`** and merged into `history.json` when the bot next starts, instead of rewriting the whole of `history.json` for every forwarded message.
+- README and `web/README.md` updated for the changes in this entry.
+- **The startup task relaunches itself.** `scripts/install-startup-task.ps1` now adds a second trigger that starts the task again every 5 minutes (`-WatchdogMinutes`), plus restart-on-failure settings. Before: if the launcher loop was killed, live forwarding stayed down until the next logon. After: it is started again within a few minutes. While the launcher is running the extra trigger does nothing. Run the script again to update an installed task.
+
 ### Fixed
 
 - `requirements.txt` pinned `aiofiles~=1.0`, a version that was never published, so `pip install -r requirements.txt` and the Docker build failed. It now pins `aiofiles~=25.1`.
+- **Tests wrote to the real data files.** Running the test suite added fake mappings to `resources/history.json`. Tests now use temporary paths for history, progress and sessions.
+- **A new date range could start past unforwarded messages.** A progress entry saved by an older version (keyed by the bare source ID) was applied to every run for that source. It now applies only to a run with no date range, media filter or keyword.
+- **Failed sends were recorded as forwarded.** In Past Forward and Forward Media Files a send that failed for good was still counted in the saved resume point, so it was never tried again. Failed message IDs are now stored with the progress entry and retried by the next run of the same range.
+- **"System local timezone" was always UTC.** It now returns the machine's IANA zone (via `tzlocal`), falling back to UTC.
+- **Delete My Messages returned before the deletes ran.** It now waits for the queued deletes to finish.
+- **Find User Messages crashed on a first run** when `resources/wantedUser.json` didn't exist.
+- **A failing menu action exited the bot.** It now prints the error and returns to the menu.
+- **Catch-up could forward a message twice** when a live handler queued the same message while catch-up was running.
+- **Service messages were forwarded** ("X joined the group", "pinned a message"). They are now skipped.
+- **A reply was lost when its parent's copy had been deleted from the destination.** It is now forwarded without the reply link.
+- **The history progress total was wrong.** It was a guess (100 messages per day of the range, or 1000); it now uses the chat's message count, or the span of message IDs for a date range or a resumed run.
+- **The web dashboard could hang at startup waiting for a login code.** It now never prompts; without a logged-in session it starts with no Telegram connection.
+- **XSS in the web dashboard.** Chat titles and other Telegram-supplied text were inserted as HTML. They are now escaped.
+- **`POST /api/keyword-forward` accepted bad input.** A malformed date silently dropped the date filter and forwarded everything. Dates must now be `YYYY-MM-DD`, `start_date` must not be after `end_date`, `timezone_name` must be an IANA name and `limit` must be 1 to 5000; anything else returns `422`.
+- **Console output could be garbled or crash on text containing `[`.** Chat titles, usernames and error messages are now escaped before Rich prints them.
+- **The `telegram-forwarder` entry point didn't resolve** after `pip install`, because `main.py` wasn't packaged.
+
+### Removed
+
+- Unused code: `Telegram.download_media` and the `DEFAULT_RATE_LIMIT_DELAY` constant.
+- Unused dependencies: `prompt`, `loguru` and `aiofiles`.
 
 ## [2.6.0] - 2026-11-01
 

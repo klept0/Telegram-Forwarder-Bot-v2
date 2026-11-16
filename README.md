@@ -35,11 +35,13 @@ This project is based on the [original Telegram Forwarder Bot](https://github.co
 >   forward large volumes quickly. The bot paces sends and waits out flood
 >   limits, but very large history runs are still at your own risk.
 > - **Protected chats:** messages from chats with *Restrict saving content*
->   enabled can't be forwarded. Those sends fail and are skipped with an error.
+>   enabled can't be forwarded. Those sends fail with an error.
 > - **One live job at a time:** Live Forward and Phrase Watch both run until
->   you press Ctrl+C, so only one can run per bot instance. The bot and the web
->   dashboard share one login session, so don't run live forwarding in both at
->   once.
+>   you press Ctrl+C, so only one can run per bot instance.
+> - **One process per account:** the menu, `--live` and the web dashboard
+>   can't use the same account at the same time. The second one to start is
+>   refused with "This Telegram session is already in use by another
+>   process". Stop the first one, then start the other.
 > - **Your session file is your account:** anyone with `sessions/` can act as
 >   you. It's gitignored; keep it that way.
 
@@ -71,11 +73,11 @@ python main.py
 ```
 
 1. Enter your **API ID**, **API hash**, and **phone number** (international
-   format, e.g. `+15551234567`). They're saved to `resources/credentials.json`
-   with owner-only permissions.
+   format, e.g. `+15551234567`).
 2. Enter the **login code** Telegram sends you and, if you use two-step
    verification, your **password**. This creates a session under `sessions/`,
-   so you won't be asked again.
+   so you won't be asked again. After a successful login the credentials are
+   saved to `resources/credentials.json` with owner-only permissions.
 3. Choose **List Chats** from the menu. **Do this before anything else:**
    every chat picker reads the list it saves (`resources/chats.json`). Run it
    again whenever you join new chats.
@@ -86,10 +88,10 @@ python main.py
 
 | Option | Works on | Filters | Resumable | Dry run | Replies & albums kept |
 | :-- | :-- | :-- | :-- | :-- | :-- |
-| **Live Forward Messages** | New messages, until Ctrl+C | — | — | — | ✅ |
+| **Live Forward Messages** | New messages, until Ctrl+C. Catches up on messages missed since the last run | — | — | — | ✅ |
 | **Past Forward Messages** | History, oldest-first | Date range | ✅ | ✅ | ✅ |
 | **Forward Media Files** | History, files/photos/videos only | Date range, keyword | ✅ | ✅ | ✅ |
-| **Keyword Search + Forward** | History (Telegram search when a keyword is given) | Keyword (optional), date range, max messages to scan | ✅ with a start **and** end date | ✅ | ❌ sent as individual messages |
+| **Keyword Search + Forward** | History (Telegram search when a keyword is given) | Keyword (optional), date range, max messages per run | ✅ with a start **and** end date | ✅ | ❌ sent as individual messages |
 | **Watch Chat for Phrase → File** | New messages, until Ctrl+C | Phrase | — | — | Writes to a file, doesn't forward |
 
 **Resumable** means re-running the same source, date range, and filters picks
@@ -98,9 +100,21 @@ or was interrupted, so nothing is sent twice. To deliberately start a range
 over, use **Clear Forward Progress Cache** first. That clears progress for
 *every* chat and range.
 
+Two more things to know about resumable runs:
+
+- **Failed sends are retried.** If Past Forward or Forward Media Files can't
+  send a message, the next run of the same range tries it again before it
+  continues. A message that can never be sent (for example, from a protected
+  chat) is tried on every run.
+- **Keyword Search + Forward stops at its limit.** With a start and end date
+  it works oldest-first and stops after the maximum number of messages. It
+  then prints "Stopped at the N-message limit". Run it again to continue from
+  that point. Without both dates it takes the newest matches up to the limit
+  and can't resume.
+
 ### Main menu
 
-1. **Add/Update Credentials**: add another account's API credentials
+1. **Add/Update Credentials**: add another account's API credentials. They are saved after a successful login; a phone number that is already saved is replaced
 2. **List Chats**: refresh the saved chat list
 3. **Delete My Messages**: delete every message you sent in your groups, except chats on the ignore list (⚠️ irreversible)
 4. **Find User Messages**: print a user's recent messages from every group/channel (chat, date, text, link) and the total found
@@ -129,12 +143,22 @@ How replies and albums are handled:
 
 - **Replies:** if the message being replied to was forwarded earlier, the
   reply is forwarded as a reply to that copy, still showing "Forwarded from".
-  If the original wasn't forwarded (e.g. it's outside the date range), the
-  reply is forwarded normally.
+  If the original wasn't forwarded (e.g. it's outside the date range), or its
+  copy was deleted from the destination, the reply is forwarded normally.
 - **Albums:** photos and videos sent together are forwarded together.
+- **Service messages** ("X joined the group", "pinned a message") are not
+  forwarded.
 
-History runs show progress against an **estimated** total; a dry run gives
-the exact count.
+When Live Forward starts from the menu or with `--live`, it first forwards
+what each source posted since the last message it forwarded. A source that
+has never been forwarded has nothing to catch up on, so a new pair doesn't
+forward a whole chat. Live forwarding started from the web dashboard doesn't
+catch up.
+
+History runs show progress against a total. For a whole chat it is the chat's
+message count. For a date range or a resumed run it is an **estimate** from
+the message IDs, a little high when messages were deleted. A dry run gives the
+exact count.
 
 ### Watch Chat for Phrase → File
 
@@ -159,7 +183,8 @@ arrive while the watch runs are logged.
 ## Web dashboard
 
 The dashboard reuses the session from [First run](#first-run); it never asks
-for a Telegram login itself.
+for a Telegram login itself. It can't run while the menu or `--live` uses the
+same account, so stop those first (see [Before you start](#before-you-start)).
 
 1. Create `.env` in the project root and set an API key:
 
@@ -223,8 +248,14 @@ curl -X POST http://localhost:8000/api/keyword-forward \
 # {"message": "Keyword run completed: 12 messages previewed for keyword 'invoice'."}
 ```
 
-Omit `keyword` to forward everything in the range; `limit` (default 500) caps
-how many messages are scanned. Chat IDs come from `GET /api/chats`.
+Omit `keyword` to forward everything in the range. `limit` (default 500,
+1 to 5000) caps how many messages one run handles; see
+[Which option do I use?](#which-option-do-i-use) for what happens at the
+limit. Chat IDs come from `GET /api/chats`.
+
+The request is rejected with `422` when a date isn't `YYYY-MM-DD`,
+`start_date` is after `end_date`, `timezone_name` isn't an IANA name, or
+`limit` is out of range.
 
 ## Run automatically at startup
 
@@ -248,11 +279,18 @@ Remove it:
 ```
 
 The launcher restarts the bot after errors such as no network at boot. It stops
-retrying when the bot needs a human, such as a login. Logs go to `logs\live.log`
-(the previous log is kept as `logs\live.log.1` after 10 MB).
+retrying when the bot needs a human, such as a login. The task also starts
+again every 5 minutes if the launcher itself was stopped (change this with
+`-WatchdogMinutes`). Logs go to `logs\live.log`
+(the previous log is kept as `logs\live.log.1` after 10 MB). Each start,
+catch-up, error and forward is logged. A forward looks like this:
 
-Only one process can use the session at a time. Stop the task before you open
-the menu:
+```text
+2026-11-16 17:15:06 Forwarded message 1138433 from -1001234567890 as 86396 in -1009876543210
+```
+
+Only one process can use the session at a time, and the bot refuses to start
+when another one has it. Stop the task before you open the menu:
 
 ```powershell
 Stop-ScheduledTask -TaskName TelegramForwarderLive
@@ -260,11 +298,12 @@ Stop-ScheduledTask -TaskName TelegramForwarderLive
 
 Stopping the task may not stop the `python` process it started. If you still
 see it, check with `Get-Process python` and stop that process before you open
-the menu.
+the menu. If you open the menu first instead, the task can't connect and
+retries every 30 seconds until you close the menu.
 
 ## Docker
 
-1. `cp .env.example .env` and set `API_KEY` (required by the `web` service).
+1. `cp .env.example .env`. Set `API_KEY` if you will use the dashboard.
 2. Log in once, interactively:
 
    ```bash
@@ -273,7 +312,7 @@ the menu.
 
    Complete the [First run](#first-run) steps, then exit. The session and
    credentials are saved to the mounted `sessions/` and `resources/` folders.
-3. Start the bot and the dashboard in the background:
+3. Start the bot in the background:
 
    ```bash
    docker compose up -d --build
@@ -290,6 +329,15 @@ the menu.
 
 Logs: `docker compose logs -f telegram-forwarder` · Stop: `docker compose down`
 
+The dashboard is a separate, opt-in service. It shares `sessions/` with the
+bot, and only one process can use an account, so run it **instead of** the
+bot:
+
+```bash
+docker compose stop telegram-forwarder
+docker compose --profile web up -d --build web
+```
+
 `resources/`, `sessions/`, `media/` and `logs/` are bind-mounted from the
 project folder, so they survive rebuilds. The dashboard is published on
 `127.0.0.1:8000` only. Older Docker installs use `docker-compose` instead of
@@ -300,11 +348,12 @@ project folder, so they survive rebuilds. The dashboard is published on
 | Path | Contents | If deleted |
 | :-- | :-- | :-- |
 | `resources/credentials.json` | API ID, API hash, phone number (owner-only permissions) | You re-enter credentials |
-| `sessions/` | Logged-in Telegram session | You log in again with a code |
+| `sessions/` | Logged-in Telegram session, plus a `.lock` file while a process uses it | You log in again with a code |
 | `resources/chats.json` | Chat list from **List Chats** | Run **List Chats** again |
 | `resources/forwardConfig.json` | Saved source → destination pairs | Saved forwarding settings are lost |
-| `resources/forward_progress.json` | Resume points for history forwards | The next run starts from the beginning |
-| `resources/history.json` | Source → destination message IDs, used to thread replies | Replies to earlier forwards aren't threaded |
+| `resources/forward_progress.json` | Resume points for history forwards, and the messages to retry | The next run starts from the beginning |
+| `resources/history.json` | Source → destination message IDs, used to thread replies and to catch up after a restart | Replies to earlier forwards aren't threaded, and Live Forward doesn't catch up |
+| `resources/history.jsonl` | Mappings added since the bot last started; merged into `history.json` on the next start | The newest mappings are lost |
 | `logs/phrase_*.md` | Phrase-watch output | Recreated on the next match |
 | `.env` | Web dashboard settings | The dashboard refuses API requests |
 
@@ -316,11 +365,13 @@ All of these are gitignored.
 | :-- | :-- |
 | A chat is missing from the picker, or the picker is empty | Run **List Chats** to refresh the saved list. |
 | `Rate limited by Telegram; waiting Ns before retrying…` | Normal. The bot waits as long as Telegram asks and retries (up to 3 times). Leave it running. |
-| `Queue Worker Error (message(chat=…, id=…))` | That one message failed and was skipped, often because the source chat restricts saving content. |
+| `Queue Worker Error (message(chat=…, id=…))` | That one message failed, often because the source chat restricts saving content. Past Forward and Forward Media Files try it again on the next run of the same range. |
+| `This Telegram session is already in use by another process` | The menu, `--live` (or the startup task) or the dashboard already uses this account. Stop it, then start again. |
+| `Stopped at the N-message limit` | Keyword Search + Forward reached its maximum. Run it again to continue. |
 | Re-running a range forwards nothing | That range already completed. Use **Clear Forward Progress Cache** to redo it. |
 | A forwarded reply isn't shown as a reply | Its original wasn't forwarded (e.g. outside the date range), so it was forwarded normally. |
 | Asked for a login code again | The session was deleted or revoked (Telegram → Settings → Devices). Log in again. |
-| Dashboard shows "Not Initialized" | No logged-in session yet. Complete [First run](#first-run), then restart the dashboard. |
+| Dashboard shows "Not Initialized" | No logged-in session yet, or the bot is using the account. Complete [First run](#first-run) or stop the bot, then restart the dashboard. |
 | API returns `503` "missing API_KEY" | Set `API_KEY` in `.env` and restart the dashboard. |
 | API returns `401` | Wrong key. The page asks for it again. |
 | Start Forwarding says "No enabled forwarding configurations" | Add a configuration, or enable one. |

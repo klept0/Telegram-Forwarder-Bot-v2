@@ -1,7 +1,8 @@
-import os
 from types import SimpleNamespace
 
 from telethon import TelegramClient
+
+from rich.markup import escape
 
 from source.model.Chat import Chat
 from source.service.ChatService import ChatService
@@ -10,7 +11,8 @@ from source.service.MessageQueue import MessageQueue
 from source.service.MessageService import MessageService
 from source.service.PhraseWatcher import PhraseWatcher
 from source.utils.Console import Terminal
-from source.utils.Constants import MEDIA_FOLDER_PATH, SESSION_PREFIX_PATH
+from source.utils.Constants import SESSION_PREFIX_PATH
+from source.utils.SessionLock import SessionLock
 
 
 class HeadlessStartupError(Exception):
@@ -30,6 +32,9 @@ class Telegram:
             credentials.api_hash,
         )
         self._is_connected = False
+        self._session_lock = SessionLock(
+            SESSION_PREFIX_PATH + credentials.phone_number + ".lock"
+        )
         self.console = Terminal.console
 
         # Initialize services
@@ -49,24 +54,38 @@ class Telegram:
         return instance
 
     async def connect(self, interactive: bool = True):
-        if not self._is_connected:
+        if self._is_connected:
+            return
+        # Raises SessionInUseError if another process has this session open.
+        self._session_lock.acquire()
+        try:
             if not self.client.is_connected():
                 await self.client.connect()
             if not await self.client.is_user_authorized():
                 if not interactive:
                     # client.start() would prompt for a login code and hang.
-                    await self.client.disconnect()
                     raise HeadlessStartupError(
                         "Telegram session is not logged in. Run `python main.py` "
                         "once and log in, then retry."
                     )
                 await self.client.start(self.credentials.phone_number)
             self._is_connected = True
+        except BaseException:
+            # Failed or cancelled login: don't leave the connection or the
+            # session lock behind.
+            try:
+                await self.client.disconnect()
+            finally:
+                self._session_lock.release()
+            raise
 
     async def disconnect(self):
         if self._is_connected:
-            await self.client.disconnect()
-            self._is_connected = False
+            try:
+                await self.client.disconnect()
+            finally:
+                self._is_connected = False
+                self._session_lock.release()
 
     async def list_chats(self):
         chats = await self.client.get_dialogs()
@@ -86,6 +105,9 @@ class Telegram:
             if dialog.id == me.id or dialog.id in ignored_ids or not dialog.is_group:
                 continue
             await self.message_service.delete_messages_from_dialog(dialog)
+        # Deletes are only queued above; wait for them so exiting the menu
+        # right afterwards doesn't drop the ones still pending.
+        await self.queue.join()
 
     async def find_user(self, config):
         """Print the wanted user's recent messages from every group/channel,
@@ -107,9 +129,11 @@ class Telegram:
                     self.chat_service.print_chat_info(chat, message)
                 found += len(messages)
             except Exception as e:
-                self.console.print(f"[bold red]Error processing dialog:[/bold red] {e}")
+                self.console.print(
+                    f"[bold red]Error processing dialog:[/bold red] {escape(str(e))}"
+                )
         self.console.print(
-            f"[bold green]Found {found} message(s) from {wanted_user.title}[/bold green]"
+            f"[bold green]Found {found} message(s) from {escape(str(wanted_user.title))}[/bold green]"
         )
         return found
 
@@ -140,6 +164,9 @@ class Telegram:
         """CLI entry point: forward live until disconnected (Ctrl+C)."""
         self.start_live_forwarding(forward_config)
         try:
+            # Handlers are registered first, so nothing posted during
+            # catch-up is missed; catch_up skips what they already sent.
+            await self._live_forward.catch_up()
             await self.client.run_until_disconnected()
         finally:
             self.stop_live_forwarding()
@@ -150,8 +177,8 @@ class Telegram:
         watcher = PhraseWatcher(self.client, **config)
         watcher.add_events()
         self.console.print(
-            f"[bold blue]Watching {watcher.chat_title} for "
-            f'"{watcher.phrase}" → {watcher.output_path} '
+            f"[bold blue]Watching {escape(watcher.chat_title)} for "
+            f'"{escape(watcher.phrase)}" → {escape(watcher.output_path)} '
             "(Ctrl+C to stop)[/bold blue]"
         )
         await self.client.run_until_disconnected()
@@ -196,10 +223,6 @@ class Telegram:
         }
         forward = Forward(self.client, forward_config_map, self.queue)
         await forward.history_handler()
-
-    async def download_media(self, message):
-        os.makedirs(MEDIA_FOLDER_PATH, exist_ok=True)
-        return await self.client.download_media(message, file=MEDIA_FOLDER_PATH)
 
     def get_queue_status(self):
         return {

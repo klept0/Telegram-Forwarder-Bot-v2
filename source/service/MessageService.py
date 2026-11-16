@@ -2,6 +2,8 @@ from datetime import datetime, timezone
 
 from telethon.errors import FloodWaitError
 
+from rich.markup import escape
+
 from source.service.ForwardProgress import ForwardProgress
 from source.utils.Constants import DEFAULT_BATCH_SIZE, DELETE_BATCH_SIZE
 from source.utils.DateUtils import DateUtils
@@ -36,7 +38,9 @@ class MessageService:
         except FloodWaitError:
             raise  # let the queue wait it out and retry
         except Exception as e:
-            self.console.print(f"[bold red]Error deleting messages:[/bold red] {e}")
+            self.console.print(
+                f"[bold red]Error deleting messages:[/bold red] {escape(str(e))}"
+            )
 
     async def find_user_messages(self, chat, user, limit=None):
         """Messages sent by `user` among the latest `limit` in `chat`."""
@@ -85,15 +89,27 @@ class MessageService:
                     f"up through {last_message_id}[/bold yellow]"
                 )
 
-        matches = []
-        async for message in self.client.iter_messages(
-            source_id,
-            search=keyword,
-            limit=limit,
-            min_id=last_message_id,
-        ):
-            if self._in_date_range(message.date, start_datetime, end_datetime):
-                matches.append(message)
+        limit_reached = False
+        if has_date_range:
+            # Oldest first from the resume point, so when `limit` cuts the
+            # run short the saved progress has nothing unforwarded before it
+            # and the next run carries on from there.
+            matches, limit_reached = await self._collect_ascending(
+                source_id, keyword, limit, last_message_id, start_datetime, end_datetime
+            )
+        else:
+            # No date range means no saved progress: take the newest `limit`
+            # matches and send them oldest first.
+            matches = []
+            async for message in self.client.iter_messages(
+                source_id,
+                search=keyword,
+                limit=limit,
+                min_id=last_message_id,
+            ):
+                if self._in_date_range(message.date, start_datetime, end_datetime):
+                    matches.append(message)
+            matches.reverse()
 
         if dry_run:
             self.console.print(
@@ -104,7 +120,7 @@ class MessageService:
 
         sent_count = 0
         last_forwarded_id = last_message_id
-        for i, message in enumerate(reversed(matches), 1):
+        for i, message in enumerate(matches, 1):
             if self.queue:
                 await self.queue.put(
                     (self._forward_message, (destination_id, message, None))
@@ -127,14 +143,54 @@ class MessageService:
                 ForwardProgress.save(
                     source_id, last_forwarded_id, start_date, end_date, keyword=keyword
                 )
-            ForwardProgress.mark_completed(
-                source_id, start_date, end_date, keyword=keyword
-            )
+            if not limit_reached:
+                ForwardProgress.mark_completed(
+                    source_id, start_date, end_date, keyword=keyword
+                )
 
         self.console.print(
             f"[bold green]Forwarded {sent_count} messages{keyword_label}[/bold green]"
         )
+        if limit_reached:
+            self.console.print(
+                f"[bold yellow]Stopped at the {limit}-message limit; run it "
+                "again to continue from here.[/bold yellow]"
+            )
         return sent_count
+
+    async def _collect_ascending(
+        self, source_id, keyword, limit, last_message_id, start_datetime, end_datetime
+    ):
+        """Matches in the date range after `last_message_id`, oldest first.
+
+        Returns (matches, limit_reached). `limit_reached` means the scan
+        stopped at `limit` and later messages in the range may remain.
+        """
+        min_id = last_message_id
+        if not min_id and start_datetime:
+            # Search can't start from a date when going oldest-first, so
+            # find the first message of the range and start from its ID.
+            first = await self.client.get_messages(
+                source_id, limit=1, offset_date=start_datetime, reverse=True
+            )
+            if not first:
+                return [], False
+            min_id = first[0].id - 1
+
+        matches = []
+        scanned = 0
+        async for message in self.client.iter_messages(
+            source_id, search=keyword, limit=limit, min_id=min_id, reverse=True
+        ):
+            scanned += 1
+            if end_datetime and not self._in_date_range(
+                message.date, None, end_datetime
+            ):
+                # Past the end of the range; everything later is too.
+                return matches, False
+            if self._in_date_range(message.date, start_datetime, end_datetime):
+                matches.append(message)
+        return matches, bool(limit) and scanned >= limit
 
     async def _drain_queue(self):
         if self.queue:

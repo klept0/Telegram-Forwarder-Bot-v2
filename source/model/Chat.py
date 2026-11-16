@@ -1,6 +1,8 @@
 import json
 import os
 
+from rich.markup import escape
+
 from source.dialog.BaseDialog import BaseDialog
 from source.utils.Constants import (
     CHAT_FILE_PATH,
@@ -99,6 +101,9 @@ class Chat:
         Returns:
             list[Chat]: List of Chat objects for wanted users
         """
+        # No user has been saved yet on a first run.
+        if not os.path.exists(WANTED_USER_FILE_PATH):
+            return []
         with open(WANTED_USER_FILE_PATH) as user_file:
             users_data = json.load(user_file)
             # Handle both single user (dict) and multiple users (list) formats
@@ -192,8 +197,8 @@ class Chat:
         display_parts = [
             f"[{type_color}]{type_padded}[/]",
             f"[dim]{id_padded}[/]",
-            f"[blue]{username_padded}[/]",
-            f"[bold]{title_padded}[/]",
+            f"[blue]{escape(username_padded)}[/]",
+            f"[bold]{escape(title_padded)}[/]",
         ]
         return " | ".join(display_parts)
 

@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -120,10 +121,13 @@ async def test_handler_errors_are_logged_not_raised(tmp_path):
 
 
 def test_default_output_path_is_a_safe_filename():
-    assert PhraseWatcher.default_output_path("Ops / Alerts!", -100) == (
+    # Compare as paths: os.path.join uses "\" on Windows.
+    assert Path(PhraseWatcher.default_output_path("Ops / Alerts!", -100)) == Path(
         "logs/phrase_ops_alerts.md"
     )
-    assert PhraseWatcher.default_output_path("🔥🔥", -100) == "logs/phrase_-100.md"
+    assert Path(PhraseWatcher.default_output_path("🔥🔥", -100)) == Path(
+        "logs/phrase_-100.md"
+    )
 
 
 def test_add_events_listens_only_to_the_watched_chat(tmp_path):

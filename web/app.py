@@ -4,7 +4,7 @@ import os
 import secrets
 import sys
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import date, datetime
 
 # Add the parent directory to Python path so we can import from source
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -16,12 +16,13 @@ from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator, model_validator
 from starlette.requests import Request
 
 from source.core.Telegram import Telegram
 from source.model.Credentials import Credentials
 from source.model.ForwardConfig import ForwardConfig
+from source.utils.DateUtils import DateUtils
 
 # Docker Compose substitutes .env into the container's real environment, but
 # a plain `python web/app.py` run never reads .env on its own. Load it here
@@ -74,11 +75,26 @@ class KeywordForwardRequest(BaseModel):
     source_id: int
     destination_id: int
     keyword: Optional[str] = None
-    limit: int = 500
-    start_date: Optional[str] = None
-    end_date: Optional[str] = None
+    limit: int = Field(default=500, ge=1, le=5000)
+    # Parsed as dates so a malformed value is rejected (422) instead of
+    # silently dropping the date filter and forwarding everything.
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
     timezone_name: str = "UTC"
     dry_run: bool = False
+
+    @field_validator("timezone_name")
+    @classmethod
+    def _valid_timezone(cls, value: str) -> str:
+        if not DateUtils.is_valid_timezone(value):
+            raise ValueError("unknown IANA timezone")
+        return value
+
+    @model_validator(mode="after")
+    def _start_not_after_end(self) -> "KeywordForwardRequest":
+        if self.start_date and self.end_date and self.start_date > self.end_date:
+            raise ValueError("start_date must be on or before end_date")
+        return self
 
 
 # Global state
@@ -98,7 +114,11 @@ async def lifespan(app: FastAPI):
     try:
         credentials_list = Credentials.get_all()
         if credentials_list:
-            telegram_client = await Telegram.create(credentials_list[0])
+            # interactive=False: an unauthorised session raises instead of
+            # prompting for a login code on stdin, which would hang startup.
+            client = Telegram(credentials_list[0])
+            await client.connect(interactive=False)
+            telegram_client = client
         else:
             print(
                 "No stored credentials found. Run `python main.py` once to "
@@ -347,8 +367,8 @@ async def keyword_forward(request: KeywordForwardRequest):
                 "destination_id": request.destination_id,
                 "keyword": request.keyword,
                 "limit": request.limit,
-                "start_date": request.start_date,
-                "end_date": request.end_date,
+                "start_date": request.start_date.isoformat() if request.start_date else None,
+                "end_date": request.end_date.isoformat() if request.end_date else None,
                 "timezone_name": request.timezone_name,
                 "dry_run": request.dry_run,
             }

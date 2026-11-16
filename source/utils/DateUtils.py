@@ -112,11 +112,15 @@ class DateUtils:
 
     @staticmethod
     def get_local_timezone_name() -> str:
-        """Get local system timezone name, with UTC fallback."""
-        local_tz = datetime.now().astimezone().tzinfo
-        key = getattr(local_tz, "key", None)
-        if key:
-            return key
+        """Get local system IANA timezone name, with UTC fallback."""
+        try:
+            from tzlocal import get_localzone_name
+
+            name = get_localzone_name()
+        except Exception:
+            name = None
+        if name and DateUtils.is_valid_timezone(name):
+            return name
         return "UTC"
 
     @staticmethod
