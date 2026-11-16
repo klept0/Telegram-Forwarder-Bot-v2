@@ -3,6 +3,9 @@ from datetime import datetime, timezone
 
 from telethon import TelegramClient, events
 from telethon.tl.custom import Message
+from telethon.tl.types import MessageService as ServiceMessage
+
+from rich.markup import escape
 
 from source.service.ForwardProgress import ForwardProgress
 from source.service.HistoryService import HistoryService
@@ -26,6 +29,12 @@ class Forward:
         self.message_forward = MessageForwardService(
             client, queue=self.queue, reply_resolver=self._handle_reply
         )
+        # Source message IDs whose send failed during the current history run.
+        self._failed_ids: set[int] = set()
+        # (source chat, message ID) of messages the live handlers took while
+        # catch_up was running, so catch_up doesn't queue them a second time.
+        self._catching_up = False
+        self._live_seen: set[tuple[int, int]] = set()
 
     def add_events(self) -> None:
         source_chats = list(self.forward_config_map.keys())
@@ -48,18 +57,24 @@ class Forward:
             destination_id = self._get_destination_id(event.chat_id)
             if not destination_id:
                 return
+            if self._catching_up:
+                self._live_seen.add((event.chat_id, event.message.id))
             await self._forward_message(destination_id, event.message)
         except Exception as e:
-            console.print(f"[bold red]Error handling message:[/bold red] {e}")
+            console.print(f"[bold red]Error handling message:[/bold red] {escape(str(e))}")
 
     async def album_handler(self, event: events.Album.Event) -> None:
         try:
             destination_id = self._get_destination_id(event.chat_id)
             if not destination_id:
                 return
+            if self._catching_up:
+                self._live_seen.update(
+                    (event.chat_id, message.id) for message in event.messages
+                )
             await self._forward_album(destination_id, event.messages)
         except Exception as e:
-            console.print(f"[bold red]Error handling album:[/bold red] {e}")
+            console.print(f"[bold red]Error handling album:[/bold red] {escape(str(e))}")
 
     async def catch_up(self) -> int:
         """Forward messages posted while live forwarding was not running.
@@ -78,6 +93,17 @@ class Forward:
             source: self._last_forwarded_id(source, config.destinationID)
             for source, config in self.forward_config_map.items()
         }
+        self._catching_up = True
+        try:
+            total = await self._catch_up_sources(resume_points)
+        finally:
+            self._catching_up = False
+            self._live_seen.clear()
+        if total:
+            console.print(f"[bold green]Catch-up queued {total} message(s)[/bold green]")
+        return total
+
+    async def _catch_up_sources(self, resume_points: dict) -> int:
         total = 0
         for source, config in self.forward_config_map.items():
             destination_id = config.destinationID
@@ -100,9 +126,7 @@ class Forward:
                     source, destination_id, last_id, upper_id
                 )
             except Exception as e:
-                console.print(f"[bold red]Catch-up failed for {source}:[/bold red] {e}")
-        if total:
-            console.print(f"[bold green]Catch-up queued {total} message(s)[/bold green]")
+                console.print(f"[bold red]Catch-up failed for {source}:[/bold red] {escape(str(e))}")
         return total
 
     def _last_forwarded_id(self, source: int, destination_id: int) -> int:
@@ -134,7 +158,13 @@ class Forward:
                 if message.id > upper_id:
                     done = True
                     break
+                if isinstance(message, ServiceMessage):
+                    continue  # joins, pins etc. can't be forwarded
                 if self.history.get_mapping(source, message.id, destination_id):
+                    continue
+                # Taken by a live handler since catch-up began; it is queued
+                # but has no history mapping until it is actually sent.
+                if (source, message.id) in self._live_seen:
                     continue
                 grouped_id = message.grouped_id
                 if album and album[-1].grouped_id != grouped_id:
@@ -245,7 +275,7 @@ class Forward:
 
         # Get total message count first (for progress tracking)
         total_messages = await self._get_total_message_count(
-            source, start_datetime, end_datetime
+            source, start_datetime, end_datetime, last_message_id
         )
         console.print(
             f"[bold green]Found approximately {total_messages} messages to forward[/bold green]"
@@ -257,6 +287,19 @@ class Forward:
                 "[bold red]No destination configured for this chat[/bold red]"
             )
             return
+
+        # Sends that failed in an earlier run sit at or before the resume
+        # point, so the loop below would never reach them again.
+        self._failed_ids = set()
+        retry_ids = ForwardProgress.load_failed(
+            source, start_date, end_date, media_only, keyword
+        )
+        if retry_ids:
+            await self._retry_failed(source, destination_id, retry_ids)
+            await self._drain_queue()
+            await self._save_progress(
+                source, last_message_id, start_date, end_date, media_only, keyword
+            )
 
         # Process messages in chunks, oldest-to-newest, so files/messages are
         # forwarded in the order they were originally posted.
@@ -362,21 +405,57 @@ class Forward:
             except asyncio.CancelledError:
                 pass
 
+    async def _retry_failed(
+        self, source: int, destination_id: int, message_ids: list[int]
+    ) -> None:
+        """Re-send messages whose send failed in an earlier run."""
+        console.print(
+            f"[bold yellow]Retrying {len(message_ids)} message(s) that failed "
+            f"earlier for chat {source}[/bold yellow]"
+        )
+        try:
+            fetched = await self.client.get_messages(source, ids=message_ids)
+        except Exception as e:
+            console.print(f"[bold red]Could not fetch failed messages:[/bold red] {escape(str(e))}")
+            self._failed_ids.update(message_ids)  # keep them for the next run
+            return
+        # Deleted messages come back as None; there is nothing left to retry.
+        messages = [m for m in fetched or [] if m is not None]
+        unit: list[Message] = []
+        for message in messages:
+            same_album = (
+                unit
+                and message.grouped_id
+                and unit[-1].grouped_id == message.grouped_id
+            )
+            if unit and not same_album:
+                await self._send_history_unit(destination_id, unit, 0)
+                unit = []
+            unit.append(message)
+        if unit:
+            await self._send_history_unit(destination_id, unit, 0)
+
     async def _send_history_unit(
         self, destination_id: int, messages: list[Message], last_message_id: int
     ) -> int:
-        """Forward one message or one album; return the new resume point."""
-        try:
-            if len(messages) == 1:
-                await self._forward_message(destination_id, messages[0])
-            else:
-                await self._forward_album(destination_id, messages)
-            return max(last_message_id, messages[-1].id)
-        except Exception as e:
-            console.print(
-                f"[bold red]Error forwarding message {messages[0].id}: {e}[/bold red]"
+        """Forward one message or one album; return the new resume point.
+
+        The send is usually only queued here, so a failure shows up later:
+        it is recorded in `_failed_ids`, which `_save_progress` persists so
+        the next run retries the message instead of resuming past it.
+        """
+        ids = [message.id for message in messages]
+
+        def on_error(_error: Exception) -> None:
+            self._failed_ids.update(ids)
+
+        if len(messages) == 1:
+            await self._forward_message(
+                destination_id, messages[0], on_error=on_error
             )
-            return last_message_id
+        else:
+            await self._forward_album(destination_id, messages, on_error=on_error)
+        return max(last_message_id, messages[-1].id)
 
     async def _drain_queue(self) -> None:
         """Wait for queued sends to finish before persisting progress.
@@ -408,33 +487,45 @@ class Forward:
         source: int,
         start_datetime: datetime | None,
         end_datetime: datetime | None,
+        last_message_id: int = 0,
     ) -> int:
         """Get approximate total message count for progress tracking.
 
         Args:
             source: Source chat ID
-            offset_date: Start date filter
+            start_datetime: Start date filter
             end_datetime: End date filter
+            last_message_id: Resume point; earlier messages are not counted
 
         Returns:
             Approximate number of messages to process
         """
         try:
-            # Get a small sample to estimate total
-            sample_messages = await self.client.get_messages(source, limit=10)
+            if not start_datetime and not end_datetime and not last_message_id:
+                # limit=0 fetches no messages, only the chat's message count.
+                result = await self.client.get_messages(source, limit=0)
+                return int(getattr(result, "total", 0) or 0)
 
-            if not sample_messages:
+            # For part of a chat, use the span of message IDs it covers: IDs
+            # in a channel or supergroup are sequential, so this is close
+            # (deleted messages make it a little high).
+            first_id = last_message_id + 1
+            if not last_message_id and start_datetime:
+                first = await self.client.get_messages(
+                    source, limit=1, offset_date=start_datetime, reverse=True
+                )
+                if not first:
+                    return 0
+                first_id = first[0].id
+            if end_datetime:
+                last = await self.client.get_messages(
+                    source, limit=1, offset_date=end_datetime
+                )
+            else:
+                last = await self.client.get_messages(source, limit=1)
+            if not last:
                 return 0
-
-            # If we have date filters, estimate based on date range
-            if start_datetime and end_datetime:
-                date_range_days = (end_datetime.date() - start_datetime.date()).days
-                if date_range_days > 0:
-                    # Rough estimate: assume 100 messages per day on average
-                    return min(date_range_days * 100, 10000)  # Cap at 10k for safety
-
-            # Default estimate based on sample
-            return 1000  # Conservative estimate
+            return max(last[0].id - first_id + 1, 0)
 
         except Exception:
             return 0  # If estimation fails, just show 0
@@ -487,8 +578,11 @@ class Forward:
         keyword: str | None = None,
     ) -> None:
         """Save forwarding progress for this chat to resume later."""
+        # Only pass failed_ids when there are some, so a clean run's call and
+        # saved entry stay unchanged.
+        extra = {"failed_ids": sorted(self._failed_ids)} if self._failed_ids else {}
         saved = ForwardProgress.save(
-            source, last_message_id, start_date, end_date, media_only, keyword
+            source, last_message_id, start_date, end_date, media_only, keyword, **extra
         )
         if saved:
             console.print(
@@ -613,6 +707,10 @@ class Forward:
         keyword: str | None = None,
     ) -> bool:
         """Combined date range / media-presence / keyword filter for a message."""
+        # Service messages (joins, pins, title changes) can't be forwarded;
+        # trying only produces an error and uses a rate-limited send slot.
+        if isinstance(message, ServiceMessage):
+            return False
         if not self.in_date_range(message, start_datetime, end_datetime):
             return False
         if media_only and not message.media:
@@ -660,20 +758,29 @@ class Forward:
         )
 
     async def _forward_message(
-        self, destination_id: int, message: Message, reply_to: int | None = None
+        self,
+        destination_id: int,
+        message: Message,
+        reply_to: int | None = None,
+        on_error=None,
     ) -> None:
         try:
             await self.message_forward.forward_message(
-                destination_id, message, reply_to, on_sent=self._on_message_sent
+                destination_id,
+                message,
+                reply_to,
+                on_sent=self._on_message_sent,
+                on_error=on_error,
             )
         except Exception as e:
-            console.print(f"[bold red]Error forwarding message:[/bold red] {e}")
+            console.print(f"[bold red]Error forwarding message:[/bold red] {escape(str(e))}")
 
     async def _forward_album(
         self,
         destination_id: int,
         messages: list[Message],
         reply_to: int | None = None,
+        on_error=None,
     ) -> None:
         try:
             await self.message_forward.forward_album(
@@ -684,9 +791,10 @@ class Forward:
                 on_sent=lambda source_messages, sent_messages: self._on_album_sent(
                     source_messages, sent_messages, destination_id
                 ),
+                on_error=on_error,
             )
         except Exception as e:
-            console.print(f"[bold red]Error forwarding album:[/bold red] {e}")
+            console.print(f"[bold red]Error forwarding album:[/bold red] {escape(str(e))}")
 
     def _on_message_sent(self, source_message: Message, sent_message) -> None:
         if not sent_message:

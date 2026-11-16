@@ -22,9 +22,15 @@ services:
       retries: 3
       start_period: 40s
 
+  # Opt-in: `docker compose --profile web up -d web`. A Telegram session can
+  # only be used by one process, and this service shares ./sessions with the
+  # bot above. Whichever connects to an account second is refused with
+  # "session is already in use", so run this instead of the bot (stop it
+  # first), or log the bot into a different account.
   web:
     build: .
     container_name: telegram-forwarder-web
+    profiles: ["web"]
     restart: unless-stopped
     command: ["python", "web/app.py"]
     environment:
@@ -42,8 +48,6 @@ services:
       - "127.0.0.1:8000:8000"
     networks:
       - telegram-network
-    depends_on:
-      - telegram-forwarder
 
 networks:
   telegram-network:

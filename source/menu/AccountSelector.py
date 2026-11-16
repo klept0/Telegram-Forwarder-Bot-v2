@@ -16,8 +16,7 @@ class AccountSelector:
             self.console.print(
                 "[bold red]No credentials found. Please add credentials first.[/bold red]"
             )
-            credentials = await Credentials.get(False)
-            return await Telegram.create(credentials)
+            return await self._add_account()
 
         choices = [
             {"name": f"Account: {cred.phone_number}", "value": cred}
@@ -31,7 +30,14 @@ class AccountSelector:
         ).execute_async()
 
         if selected == "new":
-            credentials = await Credentials.get(False)
-            return await Telegram.create(credentials)
+            return await self._add_account()
 
         return await Telegram.create(selected)
+
+    @staticmethod
+    async def _add_account():
+        credentials = await Credentials.prompt()
+        telegram = await Telegram.create(credentials)
+        # Saved only after the login worked.
+        credentials.save()
+        return telegram

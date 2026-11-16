@@ -212,6 +212,7 @@ resources/credentials.json
 resources/chats.json
 resources/forwardConfig.json
 resources/history.json
+resources/history.jsonl
 resources/ignoreChats.json
 resources/wantedUser.json
 resources/forward_progress.json

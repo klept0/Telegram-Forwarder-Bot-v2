@@ -27,6 +27,23 @@ def mock_console() -> Generator[MagicMock, None, None]:
         yield mock_console
 
 
+@pytest.fixture(autouse=True)
+def isolate_data_files(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Point persisted state at a temp dir so tests never touch the real
+    resources/history.json or resources/forward_progress.json."""
+    monkeypatch.setattr(
+        "source.model.History.HISTORY_FILE_PATH", str(tmp_path / "history.json")
+    )
+    monkeypatch.setattr(
+        "source.service.ForwardProgress.FORWARD_PROGRESS_FILE_PATH",
+        str(tmp_path / "forward_progress.json"),
+    )
+    # Session and session-lock files too.
+    monkeypatch.setattr(
+        "source.core.Telegram.SESSION_PREFIX_PATH", str(tmp_path / "session_")
+    )
+
+
 @pytest.fixture
 def temp_resources_dir(tmp_path: Path) -> Path:
     """Create a temporary resources directory for tests."""

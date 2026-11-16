@@ -4,6 +4,7 @@ import os
 import signal
 import sys
 
+from rich.markup import escape
 from source.core.Bot import Bot
 from source.core.Telegram import HeadlessStartupError
 from source.utils.Console import Terminal
@@ -58,12 +59,12 @@ def main() -> None:
     except (KeyboardInterrupt, asyncio.CancelledError):
         console.print("[bold yellow]Exiting...[/bold yellow]")
     except HeadlessStartupError as e:
-        console.print(f"[bold red]Error:[/bold red] {e}")
+        console.print(f"[bold red]Error:[/bold red] {escape(str(e))}")
         # 2: permanent, a restart will not fix it. The launcher must not retry.
         if args.live:
             sys.exit(2)
     except Exception as e:
-        console.print(f"[bold red]Error:[/bold red] {e}")
+        console.print(f"[bold red]Error:[/bold red] {escape(str(e))}")
         # 1: possibly transient (e.g. no network at boot), so the launcher retries.
         if args.live:
             sys.exit(1)

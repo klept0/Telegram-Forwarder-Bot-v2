@@ -2,6 +2,8 @@ import asyncio
 
 from telethon.errors import FloodWaitError
 
+from rich.markup import escape
+
 from source.utils.Console import Terminal
 from source.utils.Constants import MAX_FLOOD_WAIT_RETRIES
 
@@ -44,8 +46,10 @@ class MessageQueue:
     async def _worker(self):
         while self._running:
             got_item = False
+            on_error = None
             try:
-                func, args = await self.queue.get()
+                func, args, *rest = await self.queue.get()
+                on_error = rest[0] if rest else None
                 got_item = True
                 self.current_task = self._format_task_name(args)
                 await self._run_with_flood_retry(func, args)
@@ -54,8 +58,15 @@ class MessageQueue:
                 break
             except Exception as e:
                 console.print(
-                    f"[bold red]Queue Worker Error ({self.current_task}):[/bold red] {e}"
+                    f"[bold red]Queue Worker Error ({self.current_task}):[/bold red] {escape(str(e))}"
                 )
+                # Tell the caller the task was given up on, so it doesn't
+                # record the message as forwarded.
+                if on_error:
+                    try:
+                        on_error(e)
+                    except Exception:
+                        pass
             finally:
                 if got_item:
                     self.queue.task_done()
@@ -100,7 +111,8 @@ class MessageQueue:
     async def put(self, item):
         """Add a function with args to the queue.
         Args:
-            item: Tuple (function, args)
+            item: Tuple (function, args) or (function, args, on_error).
+                `on_error(exception)` is called if the task fails for good.
         """
         await self.queue.put(item)
         await self.start()  # ensure the worker is running

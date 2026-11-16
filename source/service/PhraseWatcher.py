@@ -9,6 +9,8 @@ from telethon import TelegramClient, events
 from telethon.tl.custom import Message
 from telethon.utils import get_display_name
 
+from rich.markup import escape
+
 from source.utils.Console import Terminal
 from source.utils.Constants import PHRASE_LOG_FOLDER_PATH
 
@@ -57,7 +59,7 @@ class PhraseWatcher:
                 f"[bold green]Logged message {message.id} to {self.output_path}[/bold green]"
             )
         except Exception as e:
-            console.print(f"[bold red]Error logging message:[/bold red] {e}")
+            console.print(f"[bold red]Error logging message:[/bold red] {escape(str(e))}")
 
     def append_entry(self, message: Message, sender_name: str | None) -> None:
         directory = os.path.dirname(self.output_path)

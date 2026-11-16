@@ -2,6 +2,8 @@ from datetime import datetime, timezone
 
 import telethon
 
+from rich.markup import escape
+
 from source.utils.Console import Terminal
 
 
@@ -65,13 +67,13 @@ class ChatService:
         chat_type = self.get_chat_type(chat)
 
         self.console.print(
-            f"[bold blue]{chat_type}[/bold blue]: [yellow]{chat_name}[/yellow]"
+            f"[bold blue]{chat_type}[/bold blue]: [yellow]{escape(chat_name)}[/yellow]"
         )
         if message:
             local_date = self.format_date(message.date)
             self.console.print(f"[dim]Date:[/dim] [cyan]{local_date}[/cyan]")
             if message.text:
-                self.console.print(f"[dim]Message:[/dim] [white]{message.text}[/white]")
+                self.console.print(f"[dim]Message:[/dim] [white]{escape(message.text)}[/white]")
             if hasattr(message.peer_id, "channel_id"):
                 link = f"https://t.me/c/{message.peer_id.channel_id}/{message.id}"
                 self.console.print(f"[dim]Link:[/dim] [link]{link}[/link]")

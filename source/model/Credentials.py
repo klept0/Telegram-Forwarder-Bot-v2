@@ -48,14 +48,37 @@ class Credentials:
         return []
 
     @staticmethod
+    async def prompt():
+        """Ask for new credentials without saving them. Call `save()` once
+        the login has succeeded, so a typo isn't stored as an account."""
+        return await Credentials._get_credentials_from_user()
+
+    def save(self):
+        Credentials._save_credentials(self.__dict__)
+
+    @staticmethod
     async def _get_credentials_from_user():
-        api_id = await inquirer.text(message="Enter API ID:").execute_async()
-        api_hash = await inquirer.text(message="Enter API Hash:").execute_async()
+        api_id = await inquirer.text(
+            message="Enter API ID:",
+            validate=lambda x: x.strip().isdigit(),
+            invalid_message="API ID must be a number",
+        ).execute_async()
+        api_hash = await inquirer.text(
+            message="Enter API Hash:",
+            validate=lambda x: bool(x.strip()),
+            invalid_message="API Hash cannot be empty",
+        ).execute_async()
         phone_number = await inquirer.text(
-            message="Enter Phone Number:"
+            message="Enter Phone Number:",
+            validate=lambda x: bool(x.strip()),
+            invalid_message="Phone number cannot be empty",
         ).execute_async()
 
-        return Credentials(api_id=api_id, api_hash=api_hash, phone_number=phone_number)
+        return Credentials(
+            api_id=api_id.strip(),
+            api_hash=api_hash.strip(),
+            phone_number=phone_number.strip(),
+        )
 
     @staticmethod
     def _save_credentials(new_credentials_dict):
@@ -64,6 +87,10 @@ class Credentials:
             with open(Credentials.CREDENTIALS_FILE) as f:
                 existing = json.load(f)
 
+        # Update an account that is already saved instead of adding a second
+        # entry for the same phone number (which breaks `--live`).
+        phone_number = new_credentials_dict.get("phone_number")
+        existing = [c for c in existing if c.get("phone_number") != phone_number]
         existing.append(new_credentials_dict)
 
         os.makedirs(os.path.dirname(Credentials.CREDENTIALS_FILE), exist_ok=True)

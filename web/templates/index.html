@@ -155,6 +155,14 @@
     </div>
 
     <script>
+        // Chat titles and config names come from Telegram, so they are
+        // untrusted: escape them before they go into innerHTML.
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, ch => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            }[ch]));
+        }
+
         window.onload = function() {
             syncThemeToggleIcon();
             refreshStatus();
@@ -262,12 +270,12 @@
 
                 tbody.innerHTML = forwards.map(forward => `
                     <tr>
-                        <td>${forward.source_name} (${forward.source_id})</td>
-                        <td>${forward.destination_name} (${forward.destination_id})</td>
+                        <td>${escapeHtml(forward.source_name)} (${escapeHtml(forward.source_id)})</td>
+                        <td>${escapeHtml(forward.destination_name)} (${escapeHtml(forward.destination_id)})</td>
                         <td><span style="color:${forward.enabled ? 'green' : 'red'}">${forward.enabled ? 'Enabled' : 'Disabled'}</span></td>
                         <td>
-                            <button class="btn" onclick="toggleForward(${forward.source_id})">${forward.enabled ? 'Disable' : 'Enable'}</button>
-                            <button class="btn btn-danger" onclick="deleteForward(${forward.source_id})">Delete</button>
+                            <button class="btn" onclick="toggleForward(${Number(forward.source_id)})">${forward.enabled ? 'Disable' : 'Enable'}</button>
+                            <button class="btn btn-danger" onclick="deleteForward(${Number(forward.source_id)})">Delete</button>
                         </td>
                     </tr>
                 `).join('');
@@ -284,10 +292,10 @@
 
                 tbody.innerHTML = chats.map(chat => `
                     <tr>
-                        <td>${chat.id}</td>
-                        <td>${chat.title}</td>
-                        <td>${chat.type}</td>
-                        <td>${chat.username || '-'}</td>
+                        <td>${escapeHtml(chat.id)}</td>
+                        <td>${escapeHtml(chat.title)}</td>
+                        <td>${escapeHtml(chat.type)}</td>
+                        <td>${escapeHtml(chat.username || '-')}</td>
                     </tr>
                 `).join('');
             } catch (error) {

@@ -1,6 +1,7 @@
 import asyncio
 
 from InquirerPy import inquirer
+from rich.markup import escape
 
 from source.core.Telegram import Telegram
 from source.dialog.DeleteDialog import DeleteDialog
@@ -125,7 +126,19 @@ class MainMenu:
                     if opt["value"] == choice
                 )
                 if handler:
-                    await handler()
+                    # One failed action must not take the whole menu down.
+                    try:
+                        await handler()
+                    except FileNotFoundError as e:
+                        self.console.print(
+                            f"[bold red]Missing file:[/bold red] {escape(str(e))}\n"
+                            'Run "List Chats" first if the chat list is missing.'
+                        )
+                    except Exception as e:
+                        self.console.print(
+                            f"[bold red]Error:[/bold red] {escape(str(e))}"
+                        )
+                    self.status = "Idle"
                 else:
                     self.console.print("[bold red]Invalid choice[/bold red]")
         finally:
@@ -140,9 +153,16 @@ class MainMenu:
 
     async def update_credentials(self):
         self.console.clear()
+        credentials = await Credentials.prompt()
         await self.telegram.disconnect()
-        credentials = await Credentials.get(False)
-        self.telegram = await Telegram.create(credentials)
+        try:
+            telegram = await Telegram.create(credentials)
+        except Exception:
+            # Login failed: nothing is saved, go back to the current account.
+            await self.telegram.connect()
+            raise
+        credentials.save()
+        self.telegram = telegram
 
     async def list_chats(self):
         self.console.clear()
