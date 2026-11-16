@@ -35,8 +35,12 @@ class Forward:
         # catch_up was running, so catch_up doesn't queue them a second time.
         self._catching_up = False
         self._live_seen: set[tuple[int, int]] = set()
+        # Live mode prints a line per forward; a bulk history run would
+        # print thousands, and has its own progress output.
+        self._log_forwards = False
 
     def add_events(self) -> None:
+        self._log_forwards = True
         source_chats = list(self.forward_config_map.keys())
         self.client.add_event_handler(
             self.message_handler, events.NewMessage(chats=source_chats)
@@ -47,6 +51,7 @@ class Forward:
 
     def remove_events(self) -> None:
         """Stop live forwarding by unregistering the handlers from add_events."""
+        self._log_forwards = False
         self.client.remove_event_handler(self.message_handler)
         self.client.remove_event_handler(self.album_handler)
 
@@ -821,6 +826,12 @@ class Forward:
             sent_message.chat_id,
             sent_message.id,
         )
+        self._log_forward(
+            source_message.chat_id,
+            [source_message.id],
+            sent_message.chat_id,
+            [sent_message.id],
+        )
 
     def _update_album_history(
         self,
@@ -828,10 +839,38 @@ class Forward:
         sent_messages: list[Message],
         destination_id: int,
     ) -> None:
-        for source_message, dest_message in zip(source_messages, sent_messages):
+        pairs = list(zip(source_messages, sent_messages))
+        for source_message, dest_message in pairs:
             self.history.add_mapping(
                 source_message.chat_id,
                 source_message.id,
                 destination_id,
                 dest_message.id,
             )
+        if pairs:
+            self._log_forward(
+                pairs[0][0].chat_id,
+                [source_message.id for source_message, _ in pairs],
+                destination_id,
+                [dest_message.id for _, dest_message in pairs],
+            )
+
+    def _log_forward(
+        self, source_id: int, source_ids: list[int], dest_id: int, dest_ids: list[int]
+    ) -> None:
+        """Print one timestamped line for a forwarded message or album."""
+        if not self._log_forwards:
+            return
+
+        def span(ids: list[int]) -> str:
+            return str(ids[0]) if len(ids) == 1 else f"{ids[0]}-{ids[-1]}"
+
+        kind = "message" if len(source_ids) == 1 else f"album of {len(source_ids)}"
+        stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        console.print(
+            f"{stamp} Forwarded {kind} {span(source_ids)} from {source_id} "
+            f"as {span(dest_ids)} in {dest_id}",
+            markup=False,
+            highlight=False,
+            soft_wrap=True,  # keep it on one line in the redirected log
+        )
