@@ -73,7 +73,9 @@ class ChatService:
             local_date = self.format_date(message.date)
             self.console.print(f"[dim]Date:[/dim] [cyan]{local_date}[/cyan]")
             if message.text:
-                self.console.print(f"[dim]Message:[/dim] [white]{escape(message.text)}[/white]")
+                self.console.print(
+                    f"[dim]Message:[/dim] [white]{escape(message.text)}[/white]"
+                )
             if hasattr(message.peer_id, "channel_id"):
                 link = f"https://t.me/c/{message.peer_id.channel_id}/{message.id}"
                 self.console.print(f"[dim]Link:[/dim] [link]{link}[/link]")

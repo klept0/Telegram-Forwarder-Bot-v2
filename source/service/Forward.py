@@ -66,7 +66,9 @@ class Forward:
                 self._live_seen.add((event.chat_id, event.message.id))
             await self._forward_message(destination_id, event.message)
         except Exception as e:
-            console.print(f"[bold red]Error handling message:[/bold red] {escape(str(e))}")
+            console.print(
+                f"[bold red]Error handling message:[/bold red] {escape(str(e))}"
+            )
 
     async def album_handler(self, event: events.Album.Event) -> None:
         try:
@@ -79,7 +81,9 @@ class Forward:
                 )
             await self._forward_album(destination_id, event.messages)
         except Exception as e:
-            console.print(f"[bold red]Error handling album:[/bold red] {escape(str(e))}")
+            console.print(
+                f"[bold red]Error handling album:[/bold red] {escape(str(e))}"
+            )
 
     async def catch_up(self) -> int:
         """Forward messages posted while live forwarding was not running.
@@ -105,7 +109,9 @@ class Forward:
             self._catching_up = False
             self._live_seen.clear()
         if total:
-            console.print(f"[bold green]Catch-up queued {total} message(s)[/bold green]")
+            console.print(
+                f"[bold green]Catch-up queued {total} message(s)[/bold green]"
+            )
         return total
 
     async def _catch_up_sources(self, resume_points: dict) -> int:
@@ -131,7 +137,9 @@ class Forward:
                     source, destination_id, last_id, upper_id
                 )
             except Exception as e:
-                console.print(f"[bold red]Catch-up failed for {source}:[/bold red] {escape(str(e))}")
+                console.print(
+                    f"[bold red]Catch-up failed for {source}:[/bold red] {escape(str(e))}"
+                )
         return total
 
     def _last_forwarded_id(self, source: int, destination_id: int) -> int:
@@ -421,7 +429,9 @@ class Forward:
         try:
             fetched = await self.client.get_messages(source, ids=message_ids)
         except Exception as e:
-            console.print(f"[bold red]Could not fetch failed messages:[/bold red] {escape(str(e))}")
+            console.print(
+                f"[bold red]Could not fetch failed messages:[/bold red] {escape(str(e))}"
+            )
             self._failed_ids.update(message_ids)  # keep them for the next run
             return
         # Deleted messages come back as None; there is nothing left to retry.
@@ -455,9 +465,7 @@ class Forward:
             self._failed_ids.update(ids)
 
         if len(messages) == 1:
-            await self._forward_message(
-                destination_id, messages[0], on_error=on_error
-            )
+            await self._forward_message(destination_id, messages[0], on_error=on_error)
         else:
             await self._forward_album(destination_id, messages, on_error=on_error)
         return max(last_message_id, messages[-1].id)
@@ -778,7 +786,9 @@ class Forward:
                 on_error=on_error,
             )
         except Exception as e:
-            console.print(f"[bold red]Error forwarding message:[/bold red] {escape(str(e))}")
+            console.print(
+                f"[bold red]Error forwarding message:[/bold red] {escape(str(e))}"
+            )
 
     async def _forward_album(
         self,
@@ -799,7 +809,9 @@ class Forward:
                 on_error=on_error,
             )
         except Exception as e:
-            console.print(f"[bold red]Error forwarding album:[/bold red] {escape(str(e))}")
+            console.print(
+                f"[bold red]Error forwarding album:[/bold red] {escape(str(e))}"
+            )
 
     def _on_message_sent(self, source_message: Message, sent_message) -> None:
         if not sent_message:

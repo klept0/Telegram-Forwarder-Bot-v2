@@ -176,8 +176,7 @@ async def test_keyword_forward_limit_resumes_without_skipping(tmp_path, monkeypa
         str(tmp_path / "forward_progress.json"),
     )
     messages = [
-        _make_message(i, datetime(2026, 3, i, tzinfo=timezone.utc))
-        for i in range(1, 6)
+        _make_message(i, datetime(2026, 3, i, tzinfo=timezone.utc)) for i in range(1, 6)
     ]
     messages.append(_make_message(6, datetime(2026, 4, 2, tzinfo=timezone.utc)))
     client = _IterMessagesClient(messages)

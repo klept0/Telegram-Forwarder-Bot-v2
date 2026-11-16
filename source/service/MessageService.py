@@ -38,7 +38,9 @@ class MessageService:
         except FloodWaitError:
             raise  # let the queue wait it out and retry
         except Exception as e:
-            self.console.print(f"[bold red]Error deleting messages:[/bold red] {escape(str(e))}")
+            self.console.print(
+                f"[bold red]Error deleting messages:[/bold red] {escape(str(e))}"
+            )
 
     async def find_user_messages(self, chat, user, limit=None):
         """Messages sent by `user` among the latest `limit` in `chat`."""

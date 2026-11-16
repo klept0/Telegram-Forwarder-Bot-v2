@@ -7,6 +7,8 @@ compete for the same updates, so the second one is refused up front.
 """
 
 import os
+import sys
+from typing import IO
 
 
 class SessionInUseError(RuntimeError):
@@ -16,7 +18,7 @@ class SessionInUseError(RuntimeError):
 class SessionLock:
     def __init__(self, path: str):
         self.path = path
-        self._file = None
+        self._file: IO[str] | None = None
 
     def acquire(self) -> None:
         if self._file is not None:
@@ -27,7 +29,7 @@ class SessionLock:
         lock_file = open(self.path, "a+")
         try:
             lock_file.seek(0)
-            if os.name == "nt":
+            if sys.platform == "win32":
                 import msvcrt
 
                 msvcrt.locking(lock_file.fileno(), msvcrt.LK_NBLCK, 1)
@@ -49,7 +51,7 @@ class SessionLock:
         if self._file is None:
             return
         try:
-            if os.name == "nt":
+            if sys.platform == "win32":
                 import msvcrt
 
                 self._file.seek(0)

@@ -129,7 +129,9 @@ class Telegram:
                     self.chat_service.print_chat_info(chat, message)
                 found += len(messages)
             except Exception as e:
-                self.console.print(f"[bold red]Error processing dialog:[/bold red] {escape(str(e))}")
+                self.console.print(
+                    f"[bold red]Error processing dialog:[/bold red] {escape(str(e))}"
+                )
         self.console.print(
             f"[bold green]Found {found} message(s) from {escape(str(wanted_user.title))}[/bold green]"
         )

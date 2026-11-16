@@ -43,9 +43,7 @@ def _forward(tmp_path, monkeypatch, chat, mapped_ids):
 
 
 @pytest.mark.asyncio
-async def test_catch_up_forwards_only_messages_after_last_mapped(
-    tmp_path, monkeypatch
-):
+async def test_catch_up_forwards_only_messages_after_last_mapped(tmp_path, monkeypatch):
     chat = [_message(i) for i in range(1, 7)]
     forward = _forward(tmp_path, monkeypatch, chat, mapped_ids=[1, 2, 3])
 
