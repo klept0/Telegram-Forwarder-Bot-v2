@@ -109,6 +109,38 @@ class Telegram:
         # right afterwards doesn't drop the ones still pending.
         await self.queue.join()
 
+    async def prune_messages(self, config, confirm=None):
+        """Delete messages older than a cutoff from one chat.
+
+        `confirm` is an async callable taking the match count and returning
+        True to go ahead; without it nothing is deleted. Returns a dict with
+        matched, deleted and cutoff (ISO 8601). deleted is 0 for a dry run,
+        when nothing matches, or when declined.
+        """
+        cutoff = MessageService.build_prune_cutoff(
+            days=config.get("days"),
+            before_date=config.get("before_date"),
+            timezone_name=config.get("timezone_name", "UTC"),
+        )
+        kind = "media messages" if config.get("media_only") else "messages"
+        ids = await self.message_service.collect_old_message_ids(
+            config["chat_id"], cutoff, media_only=config.get("media_only", False)
+        )
+        self.console.print(
+            f"[bold cyan]{len(ids)} {kind} posted before "
+            f"{cutoff:%Y-%m-%d %H:%M %Z} in {escape(config.get('chat_name', str(config['chat_id'])))}[/bold cyan]"
+        )
+        result = {"matched": len(ids), "deleted": 0, "cutoff": cutoff.isoformat()}
+        if not ids or config.get("dry_run"):
+            return result
+        if confirm is None or not await confirm(len(ids)):
+            self.console.print("[bold yellow]Cancelled. Nothing deleted.[/bold yellow]")
+            return result
+        await self.message_service.delete_message_ids(config["chat_id"], ids)
+        self.console.print(f"[bold green]Deleted {len(ids)} {kind}.[/bold green]")
+        result["deleted"] = len(ids)
+        return result
+
     async def find_user(self, config):
         """Print the wanted user's recent messages from every group/channel,
         scanning the latest `message_limit` messages of each."""

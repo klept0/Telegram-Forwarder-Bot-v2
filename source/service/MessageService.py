@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from telethon.errors import FloodWaitError
 
@@ -41,6 +41,46 @@ class MessageService:
             self.console.print(
                 f"[bold red]Error deleting messages:[/bold red] {escape(str(e))}"
             )
+
+    @staticmethod
+    def build_prune_cutoff(days=None, before_date=None, timezone_name="UTC", now=None):
+        """Aware datetime; messages strictly older than it get deleted.
+
+        `days`: older than that many days from `now` (UTC).
+        `before_date` (YYYY-MM-DD): before the start of that day in `timezone_name`.
+        """
+        if days is not None:
+            now = now or datetime.now(timezone.utc)
+            return now - timedelta(days=int(days))
+        parsed = DateUtils.parse_date(before_date) if before_date else None
+        if not parsed:
+            raise ValueError("Give either days or a valid before_date")
+        return datetime.combine(parsed, datetime.min.time()).replace(
+            tzinfo=DateUtils.get_timezone(timezone_name)
+        )
+
+    async def collect_old_message_ids(self, chat_id, cutoff, media_only=False):
+        """IDs of messages in `chat_id` posted before `cutoff`, newest first.
+
+        `media_only` keeps photos, videos and files only; link previews
+        don't count as media.
+        """
+        ids = []
+        async for message in self.client.iter_messages(chat_id, offset_date=cutoff):
+            if media_only and not (message.photo or message.document):
+                continue
+            ids.append(message.id)
+        return ids
+
+    async def delete_message_ids(self, chat_id, message_ids):
+        """Delete `message_ids` in batches; waits until all are done."""
+        for start in range(0, len(message_ids), DELETE_BATCH_SIZE):
+            batch = message_ids[start : start + DELETE_BATCH_SIZE]
+            if self.queue:
+                await self.queue.put((self._delete_messages, (chat_id, batch)))
+            else:
+                await self._delete_messages(chat_id, batch)
+        await self._drain_queue()
 
     async def find_user_messages(self, chat, user, limit=None):
         """Messages sent by `user` among the latest `limit` in `chat`."""

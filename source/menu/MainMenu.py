@@ -10,6 +10,7 @@ from source.dialog.ForwardDialog import ForwardDialog
 from source.dialog.KeywordForwardDialog import KeywordForwardDialog
 from source.dialog.MediaForwardDialog import MediaForwardDialog
 from source.dialog.PhraseWatchDialog import PhraseWatchDialog
+from source.dialog.PruneDialog import PruneDialog
 from source.menu.AccountSelector import AccountSelector
 from source.model.Credentials import Credentials
 from source.utils.Console import Terminal
@@ -26,6 +27,7 @@ class MainMenu:
         self.keyword_forward_dialog = KeywordForwardDialog()
         self.media_forward_dialog = MediaForwardDialog()
         self.phrase_watch_dialog = PhraseWatchDialog()
+        self.prune_dialog = PruneDialog()
         self._status_task = None
         self.status = "Idle"
 
@@ -73,6 +75,11 @@ class MainMenu:
                 "name": "Watch Chat for Phrase → File",
                 "value": "11",
                 "handler": self.watch_phrase,
+            },
+            {
+                "name": "Delete Old Messages (one chat)",
+                "value": "12",
+                "handler": self.prune_messages,
             },
             {"name": "Exit", "value": "0", "handler": None},
         ]
@@ -225,6 +232,24 @@ class MainMenu:
 
         self.status = f'Watching for "{config["phrase"]}"'
         await self.telegram.watch_phrase(config)
+        self.status = "Idle"
+
+    async def prune_messages(self):
+        config = await self.prune_dialog.get_config()
+        if not config:
+            self.console.print(
+                "[bold yellow]Delete old messages cancelled.[/bold yellow]"
+            )
+            return
+
+        async def confirm(count):
+            return await inquirer.confirm(
+                message=f"Permanently delete {count} messages? This can't be undone.",
+                default=False,
+            ).execute_async()
+
+        self.status = "Deleting old messages..."
+        await self.telegram.prune_messages(config, confirm=confirm)
         self.status = "Idle"
 
     async def clear_forward_progress(self):

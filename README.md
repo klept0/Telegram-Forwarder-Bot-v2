@@ -18,6 +18,7 @@ This project is based on the [original Telegram Forwarder Bot](https://github.co
 
 - 🔄 **Live forwarding**: new messages are forwarded as they arrive, from any number of source chats
 - 📚 **History forwarding**: forward a chat's past messages oldest-first, filtered by month, several months, or a date range in any timezone
+- 🧹 **Delete old messages**: clear out posts or media older than N days or before a date from a chat or channel
 - 🔍 **Keyword and media filters**: forward only messages matching a keyword, or only files, photos and videos
 - 🧵 **Threads and albums kept**: replies stay replies to the forwarded original, and albums arrive as albums
 - ⏯️ **Resumable, with dry runs**: interrupted runs pick up where they stopped without duplicates, and a dry run counts matches before anything is sent
@@ -125,7 +126,8 @@ Two more things to know about resumable runs:
 9. **Switch Account**
 10. **Clear Forward Progress Cache**
 11. **Watch Chat for Phrase → File**
-12. **Exit**
+12. **Delete Old Messages (one chat)**: delete messages posted before a cutoff (older than N days, or before a date) from one chat or channel, either everything or only photos, videos and files. Counts first, then asks you to confirm (⚠️ irreversible). Deleting other people's posts needs admin rights with delete permission. Also available in the web dashboard.
+13. **Exit**
 
 ### Forwarding configurations
 
@@ -206,7 +208,8 @@ same account, so stop those first (see [Before you start](#before-you-start)).
 
 The dashboard shows bot status and the send queue, browses chats, adds,
 enables, disables and deletes forwarding configurations, and starts or stops
-live forwarding for all enabled configurations. It binds to `127.0.0.1` by
+live forwarding for all enabled configurations. It can also delete old messages
+from a chat (preview, then confirm). It binds to `127.0.0.1` by
 default. Only set `WEB_HOST=0.0.0.0` behind a reverse proxy.
 
 ### Web API
