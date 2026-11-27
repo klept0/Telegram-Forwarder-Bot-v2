@@ -8,6 +8,7 @@ This directory contains the FastAPI web interface for the Telegram Forwarder Bot
 - **Forward Management**: Create, enable/disable, and delete forwarding configurations
 - **Chat Browser**: View and select available Telegram chats
 - **Control Panel**: Start/stop forwarding operations
+- **Delete Old Messages**: Preview how many messages match in one chat, then confirm to delete them
 - **REST API**: Full REST API for programmatic access
 - **Dark mode**: Toggle in the header, follows your browser's `prefers-color-scheme` by default, remembered per-browser
 - **Collapsible sections**: Long lists (Forwarding Configurations, Available Chats) collapse so they don't push other controls off-screen
@@ -82,6 +83,10 @@ it starts without a Telegram connection and shows "Not Initialized".
 ### Keyword Forwarding
 
 - `POST /api/keyword-forward` - Forward messages, optionally filtered by keyword (omit it to forward everything in range) — supports date range, timezone, dry-run, and (with a date range) resumes without re-forwarding what was already sent. `limit` is 1 to 5000 (default 500); a date-ranged run that reaches it stops, and the next run continues from there. Invalid dates, a start date after the end date, an unknown timezone or an out-of-range `limit` return `422`
+
+### Delete Old Messages
+
+- `POST /api/prune-messages` - Delete messages posted before a cutoff from one chat: `days` (older than N days) or `before_date` (YYYY-MM-DD, start of that day in `timezone_name`), optionally `media_only`. `dry_run` defaults to `true` and only returns the `matched` count. To delete, send `dry_run: false` with `max_delete` set to the count you confirmed; if more messages match than that, nothing is deleted and it returns `409`. Giving both or neither of `days` and `before_date`, or `dry_run: false` without `max_delete`, returns `422`
 
 ## Development
 

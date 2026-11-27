@@ -97,6 +97,35 @@ class KeywordForwardRequest(BaseModel):
         return self
 
 
+class PruneRequest(BaseModel):
+    chat_id: int
+    chat_name: Optional[str] = None
+    media_only: bool = False
+    days: Optional[int] = Field(default=None, ge=1)
+    before_date: Optional[date] = None
+    timezone_name: str = "UTC"
+    # Defaults to a count-only preview so a bare request never deletes.
+    dry_run: bool = True
+    # The count the user confirmed after a preview. A real run deletes
+    # nothing if more messages match than this.
+    max_delete: Optional[int] = Field(default=None, ge=0)
+
+    @field_validator("timezone_name")
+    @classmethod
+    def _valid_timezone(cls, value: str) -> str:
+        if not DateUtils.is_valid_timezone(value):
+            raise ValueError("unknown IANA timezone")
+        return value
+
+    @model_validator(mode="after")
+    def _exactly_one_cutoff(self) -> "PruneRequest":
+        if (self.days is None) == (self.before_date is None):
+            raise ValueError("give exactly one of days or before_date")
+        if not self.dry_run and self.max_delete is None:
+            raise ValueError("max_delete is required to delete; run a dry run first")
+        return self
+
+
 # Global state
 telegram_client: Optional[Telegram] = None
 app_start_time = datetime.now()
@@ -381,6 +410,52 @@ async def keyword_forward(request: KeywordForwardRequest):
                 f"Keyword run completed: {sent_count} messages {mode}{keyword_label}."
             )
         }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/prune-messages", dependencies=[Depends(verify_api_key)])
+async def prune_messages(request: PruneRequest):
+    """Delete messages posted before a cutoff from one chat."""
+    try:
+        if not telegram_client:
+            raise HTTPException(
+                status_code=503, detail="Telegram client not initialized"
+            )
+
+        async def confirm(count: int) -> bool:
+            return request.max_delete is not None and count <= request.max_delete
+
+        config = {
+            "chat_id": request.chat_id,
+            "chat_name": request.chat_name or str(request.chat_id),
+            "media_only": request.media_only,
+            "days": request.days,
+            "before_date": (
+                request.before_date.isoformat() if request.before_date else None
+            ),
+            "timezone_name": request.timezone_name,
+            "dry_run": request.dry_run,
+        }
+        result = await telegram_client.prune_messages(config, confirm=confirm)
+
+        if not request.dry_run and result["matched"] > 0 and result["deleted"] == 0:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"{result['matched']} messages match now, more than the "
+                    f"{request.max_delete} you confirmed. Preview again."
+                ),
+            )
+
+        kind = "media messages" if request.media_only else "messages"
+        if request.dry_run:
+            message = f"{result['matched']} {kind} would be deleted."
+        else:
+            message = f"Deleted {result['deleted']} {kind}."
+        return {**result, "message": message}
     except HTTPException:
         raise
     except Exception as e:
